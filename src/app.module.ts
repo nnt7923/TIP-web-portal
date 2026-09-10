@@ -4,6 +4,7 @@ import { CloudinaryModule } from './cloudinary/cloudinary.module';
 import { envValidationSchema } from './config/env.validation';
 import { PrismaModule } from './database/prisma.module';
 import { HealthModule } from './health/health.module';
+import { UniversitiesModule } from './modules/universities/universities.module';
 import { RedisModule } from './redis/redis.module';
 
 @Module({
@@ -17,6 +18,7 @@ import { RedisModule } from './redis/redis.module';
     RedisModule,
     CloudinaryModule,
     HealthModule,
+    UniversitiesModule,
   ],
 })
 export class AppModule {}

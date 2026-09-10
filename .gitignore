@@ -1,11 +1,41 @@
 node_modules/
 dist/
 coverage/
+
+# Environment variables and local overrides
 .env
 .env.*
 !.env.example
+*.local
+
+# Credentials and private keys
+.npmrc
+.pgpass
+pgpass.conf
+credentials.json
+secrets.*
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+
+# Local databases, uploads and temporary data
+*.db
+*.sqlite
+*.sqlite3
+uploads/
+tmp/
+temp/
+
+# Logs
 *.log
+
+# IDE, OS and personal agent configuration
 .DS_Store
 .idea/
 .vscode/
-
+.history/
+.codex/
+.agents/

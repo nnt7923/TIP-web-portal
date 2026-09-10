@@ -1,6 +1,7 @@
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
@@ -9,7 +10,6 @@ async function bootstrap() {
 
   app.enableCors();
   app.enableShutdownHooks();
-  app.setGlobalPrefix('api');
   app.useGlobalPipes(
     new ValidationPipe({
       transform: true,
@@ -17,6 +17,17 @@ async function bootstrap() {
       forbidNonWhitelisted: true,
     }),
   );
+
+  const swaggerConfig = new DocumentBuilder()
+    .setTitle('TIP Web Portal API')
+    .setDescription('API documentation for TIP Web Portal')
+    .setVersion('1.0')
+    .build();
+  const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig);
+  SwaggerModule.setup('swagger', app, swaggerDocument, {
+    customSiteTitle: 'TIP Web Portal API',
+    swaggerOptions: { persistAuthorization: true },
+  });
 
   const port = configService.get<number>('PORT', 3000);
   await app.listen(port);

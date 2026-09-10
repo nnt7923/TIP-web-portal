@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import {
   UploadApiOptions,
   UploadApiResponse,
@@ -8,6 +8,8 @@ import { CLOUDINARY } from './cloudinary.constants';
 
 @Injectable()
 export class CloudinaryService {
+  private readonly logger = new Logger(CloudinaryService.name);
+
   constructor(
     @Inject(CLOUDINARY) private readonly cloudinary: typeof Cloudinary,
   ) {}
@@ -40,5 +42,14 @@ export class CloudinaryService {
 
   destroy(publicId: string): Promise<unknown> {
     return this.cloudinary.uploader.destroy(publicId);
+  }
+
+  /** Xóa một tài nguyên Cloudinary và chỉ ghi cảnh báo nếu thao tác thất bại. */
+  async destroySafely(publicId: string): Promise<void> {
+    try {
+      await this.destroy(publicId);
+    } catch {
+      this.logger.warn(`Could not delete Cloudinary asset "${publicId}"`);
+    }
   }
 }

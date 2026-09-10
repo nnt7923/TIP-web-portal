@@ -16,15 +16,49 @@ enum UniversityStatus {
 }
 
 model University {
-  id      String           @id @default(uuid())
-  name    String
-  code    String           @unique
-  website String?
-  address String?
-  logoUrl String?
-  status  UniversityStatus @default(PENDING)
+  id           String           @id @default(uuid())
+  name         String
+  code         String           @unique
+  website      String?
+  address      String?
+  logoUrl      String?
+  logoPublicId String?
+  status       UniversityStatus @default(PENDING)
+  schoolUsers  SchoolUser[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
+enum SchoolUserRole {
+  STAFF
+  UNIVERSITY_SUPERVISOR
+}
+
+enum SchoolUserStatus {
+  PENDING
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+model SchoolUser {
+  id           String           @id @default(uuid())
+  universityId String
+  fullName     String
+  username     String
+  email        String
+  phone        String
+  passwordHash String
+  role         SchoolUserRole
+  status       SchoolUserStatus @default(ACTIVE)
+
+  university University @relation(fields: [universityId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([universityId, email])
+  @@index([universityId])
+  @@index([universityId, role])
+}

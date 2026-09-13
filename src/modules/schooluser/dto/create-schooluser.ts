@@ -1,5 +1,12 @@
 import { SchoolUserRole } from '@prisma/client';
-import { IsEmail, IsEnum, IsNotEmpty, IsString, IsUUID } from 'class-validator';
+import {
+  IsEmail,
+  IsEnum,
+  IsNotEmpty,
+  IsString,
+  IsUUID,
+  MinLength,
+} from 'class-validator';
 
 export class CreateSchoolUserDto {
   @IsUUID()
@@ -18,6 +25,7 @@ export class CreateSchoolUserDto {
 
   @IsString()
   @IsNotEmpty()
+  @MinLength(8)
   password: string;
 
   @IsString()

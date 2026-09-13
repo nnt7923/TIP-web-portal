@@ -46,7 +46,7 @@ model SchoolUser {
   id           String           @id @default(uuid())
   universityId String
   fullName     String
-  username     String
+  username     String           @unique
   email        String
   phone        String
   passwordHash String

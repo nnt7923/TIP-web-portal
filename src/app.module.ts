@@ -6,6 +6,7 @@ import { PrismaModule } from './database/prisma.module';
 import { HealthModule } from './health/health.module';
 import { UniversitiesModule } from './modules/universities/universities.module';
 import { RedisModule } from './redis/redis.module';
+import { AuthModule } from './modules/auth/auth.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { RedisModule } from './redis/redis.module';
     CloudinaryModule,
     HealthModule,
     UniversitiesModule,
+    AuthModule,
   ],
 })
 export class AppModule {}

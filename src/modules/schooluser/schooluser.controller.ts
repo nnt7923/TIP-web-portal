@@ -20,7 +20,7 @@ import { SchoolUserService } from './schooluser.service';
 @ApiTags('SchoolUsers')
 @Controller('schoolusers')
 export class SchoolUserController {
-  constructor(private readonly schoolUserService: SchoolUserService) { }
+  constructor(private readonly schoolUserService: SchoolUserService) {}
 
   @Post()
   @ApiOperation({ summary: 'Create a school user' })
@@ -68,7 +68,7 @@ export class SchoolUserController {
   @ApiOperation({ summary: 'Get and filter school users by university' })
   findAllSchoolUsers(
     @Param('universityId', new ParseUUIDPipe()) universityId: string,
-    @Query() query: QuerySchoolUserDto
+    @Query() query: QuerySchoolUserDto,
   ) {
     return this.schoolUserService.findAllSchoolUsers(universityId, query);
   }

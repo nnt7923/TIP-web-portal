@@ -21,7 +21,10 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "redis:up": "docker compose up -d --wait redis",
+    "redis:stop": "docker compose stop redis",
+    "redis:ping": "docker compose exec -T redis redis-cli ping"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

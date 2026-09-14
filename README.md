@@ -41,6 +41,28 @@ API chạy tại `http://localhost:3000/api`. Kiểm tra kết nối PostgreSQL 
 GET http://localhost:3000/api/health
 ```
 
+## Redis qua Docker (local development)
+
+Mở Docker Desktop và chờ engine chạy, sau đó chạy tại thư mục dự án:
+
+```bash
+npm run redis:up
+npm run redis:ping
+```
+
+Lệnh đầu tải image Redis và chờ container healthy. Lệnh kiểm tra phải trả về `PONG`.
+Giữ `REDIS_URL=redis://localhost:6379` trong `.env` khi chạy NestJS trên máy host.
+Redis chỉ mở cổng `6379` trên `127.0.0.1`, dùng AOF và volume `redis-data` để lưu dữ liệu.
+Cấu hình này dành cho phát triển local, không có mật khẩu.
+
+```bash
+docker compose ps
+docker compose logs --tail 50 redis
+npm run redis:stop
+```
+
+`redis:stop` giữ dữ liệu; `docker compose down -v` sẽ xóa volume và dữ liệu Redis.
+
 ## Cloudinary
 
 Điền ba giá trị lấy từ Cloudinary Console vào `.env`:

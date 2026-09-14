@@ -10,7 +10,12 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService, JwtSignOptions } from '@nestjs/jwt';
-import { SchoolUserRole, SchoolUserStatus } from '@prisma/client';
+import {
+  AccountStatus,
+  GlobalRole,
+  SchoolUserRole,
+  SchoolUserStatus,
+} from '@prisma/client';
 import {
   createHash,
   randomBytes,
@@ -43,10 +48,14 @@ type AuthTokens = {
   refreshToken: string;
 };
 
-type TokenUser = {
+type TokenAccount = {
   id: string;
   username: string;
-  role: SchoolUserRole;
+  globalRole: GlobalRole;
+  schoolUser: {
+    universityId: string;
+    role: SchoolUserRole;
+  } | null;
 };
 
 @Injectable()
@@ -60,32 +69,32 @@ export class AuthService {
   ) {}
 
   async login(loginDto: LoginDto): Promise<AuthTokens> {
-    const user = await this.prisma.schoolUser.findUnique({
+    const account = await this.prisma.account.findUnique({
       where: { username: loginDto.username.trim() },
+      include: { schoolUser: true },
     });
 
-    if (!user) {
+    if (!account) {
       throw new UnauthorizedException('Invalid username or password');
     }
 
     const isPasswordValid = await this.verifyPassword(
       loginDto.password,
-      user.passwordHash,
+      account.passwordHash,
     );
 
     if (!isPasswordValid) {
       throw new UnauthorizedException('Invalid username or password');
     }
 
-    if (user.status !== SchoolUserStatus.ACTIVE) {
-      throw new ForbiddenException('Account is not active');
-    }
+    this.assertAccountCanLogin(account);
 
-    if (!user.emailVerifiedAt) {
-      throw new ForbiddenException('Email has not been verified');
-    }
+    await this.prisma.account.update({
+      where: { id: account.id },
+      data: { lastLoginAt: new Date() },
+    });
 
-    return this.issueTokens(user);
+    return this.issueTokens(account);
   }
 
   async register(registerDto: RegisterDto) {
@@ -101,82 +110,96 @@ export class AuthService {
       throw new NotFoundException('University was not found');
     }
 
-    const existingUser = await this.prisma.schoolUser.findFirst({
-      where: {
-        OR: [{ username }, { universityId: registerDto.universityId, email }],
-      },
+    const existingAccount = await this.prisma.account.findFirst({
+      where: { OR: [{ username }, { email }] },
       select: { id: true },
     });
 
-    if (existingUser) {
+    if (existingAccount) {
       throw new ConflictException('Username or email is already registered');
     }
 
-    const passwordHash = await this.hashPassword(registerDto.password);
-    const user = await this.prisma.schoolUser.create({
+    const account = await this.prisma.account.create({
       data: {
-        universityId: registerDto.universityId,
         fullName: registerDto.fullName.trim(),
         email,
         username,
-        passwordHash,
+        passwordHash: await this.hashPassword(registerDto.password),
         phone: registerDto.phone.trim(),
-        role: registerDto.role,
-        status: SchoolUserStatus.PENDING,
+        globalRole: GlobalRole.USER,
+        status: AccountStatus.ACTIVE,
+        schoolUser: {
+          create: {
+            universityId: registerDto.universityId,
+            role: registerDto.role,
+            status: SchoolUserStatus.PENDING,
+          },
+        },
       },
       select: {
         id: true,
-        universityId: true,
         fullName: true,
         email: true,
         username: true,
         phone: true,
-        role: true,
+        globalRole: true,
         status: true,
         emailVerifiedAt: true,
         createdAt: true,
+        schoolUser: {
+          select: {
+            id: true,
+            universityId: true,
+            role: true,
+            status: true,
+          },
+        },
       },
     });
 
     try {
-      await this.sendOtp(user.id, user.email, OtpPurpose.EmailVerification);
+      await this.sendOtp(
+        account.id,
+        account.email,
+        OtpPurpose.EmailVerification,
+      );
     } catch (error) {
-      await this.prisma.schoolUser.delete({ where: { id: user.id } });
+      await this.prisma.account.delete({ where: { id: account.id } });
       throw error;
     }
 
     return {
       message:
         'Registration successful. Verify your email, then wait for admin approval.',
-      user,
+      account,
     };
   }
 
   async verifyOtp(dto: VerifyOtpDto) {
     const purpose = dto.purpose ?? OtpPurpose.EmailVerification;
-    const user = await this.findUserByEmail(dto.email, dto.universityId);
+    const account = await this.findAccountByEmail(dto.email, dto.universityId);
 
-    if (!user) {
+    if (!account) {
       throw new BadRequestException('Invalid or expired OTP');
     }
 
-    if (purpose === OtpPurpose.EmailVerification && user.emailVerifiedAt) {
+    if (purpose === OtpPurpose.EmailVerification && account.emailVerifiedAt) {
       return { message: 'Email is already verified.' };
     }
 
-    const isValid = await this.consumeOtp(user.id, purpose, dto.otp);
+    const isValid = await this.consumeOtp(account.id, purpose, dto.otp);
 
     if (!isValid) {
       throw new BadRequestException('Invalid or expired OTP');
     }
 
     await this.redisService.connection.del(
-      this.otpCooldownKey(user.id, purpose),
+      this.otpCooldownKey(account.id, purpose),
     );
 
     if (purpose === OtpPurpose.EmailVerification) {
-      await this.prisma.schoolUser.update({
-        where: { id: user.id },
+      await this.prisma.account.update({
+        where: { id: account.id },
         data: { emailVerifiedAt: new Date() },
       });
 
@@ -188,7 +211,7 @@ export class AuthService {
     const resetToken = randomBytes(32).toString('hex');
     await this.redisService.connection.set(
       this.passwordResetKey(resetToken),
-      user.id,
+      account.id,
       'EX',
       PASSWORD_RESET_TOKEN_TTL_SECONDS,
     );
@@ -201,24 +224,20 @@ export class AuthService {
 
   async resendOtp(dto: ResendOtpDto) {
     const purpose = dto.purpose ?? OtpPurpose.EmailVerification;
-    const user = await this.findUserByEmail(dto.email, dto.universityId);
+    const account = await this.findAccountByEmail(dto.email, dto.universityId);
 
-    if (!user) {
-      return {
-        message: 'If the email exists, a new OTP has been sent.',
-      };
+    if (!account) {
+      return { message: 'If the email exists, a new OTP has been sent.' };
     }
 
-    if (purpose === OtpPurpose.EmailVerification && user.emailVerifiedAt) {
+    if (purpose === OtpPurpose.EmailVerification && account.emailVerifiedAt) {
       return { message: 'Email is already verified.' };
     }
 
-    await this.assertOtpCooldown(user.id, purpose);
-    await this.sendOtp(user.id, user.email, purpose);
+    await this.assertOtpCooldown(account.id, purpose);
+    await this.sendOtp(account.id, account.email, purpose);
 
-    return {
-      message: 'If the email exists, a new OTP has been sent.',
-    };
+    return { message: 'If the email exists, a new OTP has been sent.' };
   }
 
   async refreshToken(refreshToken: string): Promise<AuthTokens> {
@@ -229,52 +248,53 @@ export class AuthService {
     const session = await this.redisService.connection.hgetall(
       this.sessionKey(payload.sid),
     );
+    const sessionAccountId = session.accountId ?? session.userId;
 
-    if (session.userId !== payload.sub || session.refreshJti !== payload.jti) {
+    if (
+      sessionAccountId !== payload.sub ||
+      session.refreshJti !== payload.jti
+    ) {
       throw new UnauthorizedException('Refresh token has been revoked');
     }
 
-    const user = await this.prisma.schoolUser.findUnique({
+    const account = await this.prisma.account.findUnique({
       where: { id: payload.sub },
-      select: {
-        id: true,
-        username: true,
-        role: true,
-        status: true,
-        emailVerifiedAt: true,
-      },
+      include: { schoolUser: true },
     });
 
-    if (
-      !user ||
-      user.status !== SchoolUserStatus.ACTIVE ||
-      !user.emailVerifiedAt
-    ) {
+    if (!account) {
       await this.removeSession(payload.sub, payload.sid);
       throw new UnauthorizedException('Invalid or inactive account');
     }
 
-    return this.issueTokens(user, payload.sid);
+    try {
+      this.assertAccountCanLogin(account);
+    } catch {
+      await this.removeSession(payload.sub, payload.sid);
+      throw new UnauthorizedException('Invalid or inactive account');
+    }
+
+    return this.issueTokens(account, payload.sid);
   }
 
-  async logout(userId: string, accessToken: string) {
+  async logout(accountId: string, accessToken: string) {
     const payload = await this.verifySignedToken(accessToken, TokenType.Access);
-    this.assertTokenOwner(payload, userId);
+    this.assertTokenOwner(payload, accountId);
 
     await Promise.all([
       this.blacklistToken(payload),
-      this.removeSession(userId, payload.sid),
+      this.removeSession(accountId, payload.sid),
     ]);
 
     return { message: 'Logged out successfully.' };
   }
 
-  async logoutAll(userId: string) {
-    await this.removeAllSessions(userId);
+  async logoutAll(accountId: string) {
+    await this.removeAllSessions(accountId);
     return { message: 'Logged out from all devices successfully.' };
   }
 
-  async revokeToken(userId: string, token: string) {
+  async revokeToken(accountId: string, token: string) {
     let payload: JwtPayload;
 
     try {
@@ -283,30 +303,30 @@ export class AuthService {
       payload = await this.verifySignedToken(token, TokenType.Refresh);
     }
 
-    this.assertTokenOwner(payload, userId);
+    this.assertTokenOwner(payload, accountId);
 
     if (payload.tokenType === TokenType.Access) {
       await this.blacklistToken(payload);
     } else {
-      await this.removeSession(userId, payload.sid);
+      await this.removeSession(accountId, payload.sid);
     }
 
     return { message: 'Token revoked successfully.' };
   }
 
-  async changePassword(userId: string, dto: ChangePasswordDto) {
-    const user = await this.prisma.schoolUser.findUnique({
-      where: { id: userId },
+  async changePassword(accountId: string, dto: ChangePasswordDto) {
+    const account = await this.prisma.account.findUnique({
+      where: { id: accountId },
       select: { passwordHash: true },
     });
 
-    if (!user) {
-      throw new NotFoundException('User was not found');
+    if (!account) {
+      throw new NotFoundException('Account was not found');
     }
 
     const isCurrentPasswordValid = await this.verifyPassword(
       dto.currentPassword,
-      user.passwordHash,
+      account.passwordHash,
     );
 
     if (!isCurrentPasswordValid) {
@@ -319,11 +339,11 @@ export class AuthService {
       );
     }
 
-    await this.prisma.schoolUser.update({
-      where: { id: userId },
+    await this.prisma.account.update({
+      where: { id: accountId },
       data: { passwordHash: await this.hashPassword(dto.newPassword) },
     });
-    await this.removeAllSessions(userId);
+    await this.removeAllSessions(accountId);
 
     return {
       message: 'Password changed. Please log in again on all devices.',
@@ -331,24 +351,24 @@ export class AuthService {
   }
 
   async resetPassword(dto: ResetPasswordDto) {
-    const userId = await this.readPasswordResetToken(dto.resetToken);
+    const accountId = await this.readPasswordResetToken(dto.resetToken);
 
-    if (!userId) {
+    if (!accountId) {
       throw new BadRequestException('Invalid or expired reset token');
     }
 
-    const user = await this.prisma.schoolUser.findUnique({
-      where: { id: userId },
+    const account = await this.prisma.account.findUnique({
+      where: { id: accountId },
       select: { id: true, passwordHash: true },
     });
 
-    if (!user) {
+    if (!account) {
       throw new BadRequestException('Invalid or expired reset token');
     }
 
     const isSamePassword = await this.verifyPassword(
       dto.newPassword,
-      user.passwordHash,
+      account.passwordHash,
     );
 
     if (isSamePassword) {
@@ -359,18 +379,18 @@ export class AuthService {
 
     const tokenWasConsumed = await this.consumePasswordResetToken(
       dto.resetToken,
-      user.id,
+      account.id,
     );
 
     if (!tokenWasConsumed) {
       throw new BadRequestException('Invalid or expired reset token');
     }
 
-    await this.prisma.schoolUser.update({
-      where: { id: user.id },
+    await this.prisma.account.update({
+      where: { id: account.id },
       data: { passwordHash: await this.hashPassword(dto.newPassword) },
     });
-    await this.removeAllSessions(user.id);
+    await this.removeAllSessions(account.id);
 
     return {
       message: 'Password reset successfully. Please log in again.',
@@ -381,7 +401,6 @@ export class AuthService {
   private async hashPassword(password: string): Promise<string> {
     const salt = randomBytes(16).toString('hex');
     const derivedKey = (await scryptAsync(password, salt, 64)) as Buffer;
-
     return `${salt}:${derivedKey.toString('hex')}`;
   }
 
@@ -391,23 +410,14 @@ export class AuthService {
     passwordHash: string,
   ): Promise<boolean> {
     const separatorIndex = passwordHash.indexOf(':');
-
-    if (separatorIndex <= 0) {
-      return false;
-    }
+    if (separatorIndex <= 0) return false;
 
     const salt = passwordHash.slice(0, separatorIndex);
     const storedKeyHex = passwordHash.slice(separatorIndex + 1);
-
-    if (!storedKeyHex || !/^[a-f\d]+$/i.test(storedKeyHex)) {
-      return false;
-    }
+    if (!storedKeyHex || !/^[a-f\d]+$/i.test(storedKeyHex)) return false;
 
     const storedKey = Buffer.from(storedKeyHex, 'hex');
-
-    if (storedKey.length === 0) {
-      return false;
-    }
+    if (storedKey.length === 0) return false;
 
     const derivedKey = (await scryptAsync(
       password,
@@ -421,15 +431,39 @@ export class AuthService {
     );
   }
 
+  /** Rejects globally disabled accounts and inactive organization profiles. */
+  private assertAccountCanLogin(account: {
+    status: AccountStatus;
+    globalRole: GlobalRole;
+    emailVerifiedAt: Date | null;
+    schoolUser: { status: SchoolUserStatus } | null;
+  }): void {
+    if (account.status !== AccountStatus.ACTIVE) {
+      throw new ForbiddenException('Account is not active');
+    }
+
+    if (!account.emailVerifiedAt) {
+      throw new ForbiddenException('Email has not been verified');
+    }
+
+    if (
+      account.globalRole !== GlobalRole.SYSTEM_ADMIN &&
+      (!account.schoolUser ||
+        account.schoolUser.status !== SchoolUserStatus.ACTIVE)
+    ) {
+      throw new ForbiddenException('School account is waiting for approval');
+    }
+  }
+
   /** Sends a six-digit OTP and stores it in Redis for five minutes. */
   private async sendOtp(
-    userId: string,
+    accountId: string,
     email: string,
     purpose: OtpPurpose,
   ): Promise<void> {
     const otp = randomInt(100000, 1000000).toString();
-    const redisKey = this.otpKey(userId, purpose);
-    const cooldownKey = this.otpCooldownKey(userId, purpose);
+    const redisKey = this.otpKey(accountId, purpose);
+    const cooldownKey = this.otpCooldownKey(accountId, purpose);
 
     await this.redisService.connection
       .multi()
@@ -447,11 +481,11 @@ export class AuthService {
 
   /** Prevents repeated OTP requests during the resend cooldown period. */
   private async assertOtpCooldown(
-    userId: string,
+    accountId: string,
     purpose: OtpPurpose,
   ): Promise<void> {
     const remainingSeconds = await this.redisService.connection.ttl(
-      this.otpCooldownKey(userId, purpose),
+      this.otpCooldownKey(accountId, purpose),
     );
 
     if (remainingSeconds > 0) {
@@ -462,80 +496,71 @@ export class AuthService {
     }
   }
 
-  /** Finds one account by email and resolves possible university ambiguity. */
-  private async findUserByEmail(emailValue: string, universityId?: string) {
-    const email = emailValue.trim().toLowerCase();
-    const users = await this.prisma.schoolUser.findMany({
-      where: {
-        email: { equals: email, mode: 'insensitive' },
-        ...(universityId && { universityId }),
-      },
+  /** Finds the global Account for an email and optionally checks its university. */
+  private async findAccountByEmail(emailValue: string, universityId?: string) {
+    const account = await this.prisma.account.findUnique({
+      where: { email: emailValue.trim().toLowerCase() },
       select: {
         id: true,
         email: true,
         emailVerifiedAt: true,
+        schoolUser: { select: { universityId: true } },
       },
-      take: 2,
     });
 
-    if (users.length > 1) {
-      throw new BadRequestException(
-        'universityId is required because this email belongs to multiple universities',
-      );
+    if (
+      account &&
+      universityId &&
+      account.schoolUser?.universityId !== universityId
+    ) {
+      return null;
     }
 
-    return users[0] ?? null;
+    return account;
   }
 
   /** Atomically validates and consumes an OTP so it cannot be reused. */
   private async consumeOtp(
-    userId: string,
+    accountId: string,
     purpose: OtpPurpose,
     otp: string,
   ): Promise<boolean> {
     const result: unknown = await this.redisService.connection.eval(
       "local value = redis.call('GET', KEYS[1]); if not value or value ~= ARGV[1] then return 0 end; redis.call('DEL', KEYS[1]); return 1",
       1,
-      this.otpKey(userId, purpose),
+      this.otpKey(accountId, purpose),
       otp,
     );
-
     return result === 1;
   }
 
-  /** Issues an access/refresh pair and records the refresh session in Redis. */
+  /** Issues an access/refresh pair and records the Account session in Redis. */
   private async issueTokens(
-    user: TokenUser,
+    account: TokenAccount,
     existingSessionId?: string,
   ): Promise<AuthTokens> {
     const sessionId = existingSessionId ?? randomUUID();
     const accessJti = randomUUID();
     const refreshJti = randomUUID();
     const basePayload = {
-      sub: user.id,
-      username: user.username,
-      role: user.role,
+      sub: account.id,
+      username: account.username,
+      globalRole: account.globalRole,
+      schoolRole: account.schoolUser?.role,
+      universityId: account.schoolUser?.universityId,
       sid: sessionId,
     };
 
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync(
-        {
-          ...basePayload,
-          jti: accessJti,
-          tokenType: TokenType.Access,
-        },
+        { ...basePayload, jti: accessJti, tokenType: TokenType.Access },
         {
           secret: this.accessTokenSecret,
           expiresIn: this.accessTokenExpiresIn,
         },
       ),
       this.jwtService.signAsync(
-        {
-          ...basePayload,
-          jti: refreshJti,
-          tokenType: TokenType.Refresh,
-        },
+        { ...basePayload, jti: refreshJti, tokenType: TokenType.Refresh },
         {
           secret: this.refreshTokenSecret,
           expiresIn: this.refreshTokenExpiresIn,
@@ -553,14 +578,14 @@ export class AuthService {
       1,
     );
     const sessionKey = this.sessionKey(sessionId);
-    const userSessionsKey = this.userSessionsKey(user.id);
+    const accountSessionsKey = this.accountSessionsKey(account.id);
 
     await this.redisService.connection
       .multi()
-      .hset(sessionKey, 'userId', user.id, 'refreshJti', refreshJti)
+      .hset(sessionKey, 'accountId', account.id, 'refreshJti', refreshJti)
       .expire(sessionKey, sessionTtl)
-      .sadd(userSessionsKey, sessionId)
-      .expire(userSessionsKey, sessionTtl)
+      .sadd(accountSessionsKey, sessionId)
+      .expire(accountSessionsKey, sessionTtl)
       .exec();
 
     return { accessToken, refreshToken };
@@ -608,34 +633,34 @@ export class AuthService {
     }
   }
 
-  /** Deletes one login session and removes it from the user's session set. */
+  /** Deletes one login session and removes it from the Account session set. */
   private async removeSession(
-    userId: string,
+    accountId: string,
     sessionId: string,
   ): Promise<void> {
     await this.redisService.connection
       .multi()
       .del(this.sessionKey(sessionId))
-      .srem(this.userSessionsKey(userId), sessionId)
+      .srem(this.accountSessionsKey(accountId), sessionId)
       .exec();
   }
 
-  /** Deletes every active login session owned by one user. */
-  private async removeAllSessions(userId: string): Promise<void> {
-    const userSessionsKey = this.userSessionsKey(userId);
+  /** Deletes every active login session owned by one Account. */
+  private async removeAllSessions(accountId: string): Promise<void> {
+    const accountSessionsKey = this.accountSessionsKey(accountId);
     const sessionIds =
-      await this.redisService.connection.smembers(userSessionsKey);
+      await this.redisService.connection.smembers(accountSessionsKey);
     const transaction = this.redisService.connection.multi();
 
     for (const sessionId of sessionIds) {
       transaction.del(this.sessionKey(sessionId));
     }
 
-    transaction.del(userSessionsKey);
+    transaction.del(accountSessionsKey);
     await transaction.exec();
   }
 
-  /** Reads the user id stored for a password reset token. */
+  /** Reads the Account id stored for a password reset token. */
   private async readPasswordResetToken(token: string): Promise<string | null> {
     return this.redisService.connection.get(this.passwordResetKey(token));
   }
@@ -643,39 +668,38 @@ export class AuthService {
   /** Atomically consumes a one-time password reset token. */
   private async consumePasswordResetToken(
     token: string,
-    expectedUserId: string,
+    expectedAccountId: string,
   ): Promise<boolean> {
     const result: unknown = await this.redisService.connection.eval(
       "local value = redis.call('GET', KEYS[1]); if not value or value ~= ARGV[1] then return 0 end; redis.call('DEL', KEYS[1]); return 1",
       1,
       this.passwordResetKey(token),
-      expectedUserId,
+      expectedAccountId,
     );
-
     return result === 1;
   }
 
-  /** Ensures a token can only be managed by its owning user. */
-  private assertTokenOwner(payload: JwtPayload, userId: string): void {
-    if (payload.sub !== userId) {
-      throw new ForbiddenException('You cannot revoke another user token');
+  /** Ensures a token can only be managed by its owning Account. */
+  private assertTokenOwner(payload: JwtPayload, accountId: string): void {
+    if (payload.sub !== accountId) {
+      throw new ForbiddenException('You cannot revoke another account token');
     }
   }
 
-  private otpKey(userId: string, purpose: OtpPurpose): string {
-    return `otp:${purpose}:${userId}`;
+  private otpKey(accountId: string, purpose: OtpPurpose): string {
+    return `otp:${purpose}:${accountId}`;
   }
 
-  private otpCooldownKey(userId: string, purpose: OtpPurpose): string {
-    return `otp:cooldown:${purpose}:${userId}`;
+  private otpCooldownKey(accountId: string, purpose: OtpPurpose): string {
+    return `otp:cooldown:${purpose}:${accountId}`;
   }
 
   private sessionKey(sessionId: string): string {
     return `auth:session:${sessionId}`;
   }
 
-  private userSessionsKey(userId: string): string {
-    return `auth:user-sessions:${userId}`;
+  private accountSessionsKey(accountId: string): string {
+    return `auth:user-sessions:${accountId}`;
   }
 
   private revokedTokenKey(jti: string): string {

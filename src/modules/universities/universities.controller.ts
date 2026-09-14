@@ -10,9 +10,19 @@ import {
   Patch,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { UniversityStatus } from '@prisma/client';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
+import { GlobalRole, UniversityStatus } from '@prisma/client';
+import { GlobalRoles } from '../../common/decorators/global-roles.decorator';
+import { GlobalRolesGuard } from '../auth/guards/global-roles.guard';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth-guard';
 import { CreateUniversityDto } from './dto/create-university.dto';
 import { QueryUniversityDto } from './dto/query-university.dto';
 import { UpdateUniversityDto } from './dto/update-university.dto';
@@ -24,6 +34,9 @@ export class UniversitiesController {
   constructor(private readonly universitiesService: UniversitiesService) {}
 
   @Post()
+  @UseGuards(JwtAuthGuard, GlobalRolesGuard)
+  @GlobalRoles(GlobalRole.SYSTEM_ADMIN)
+  @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'Create a university' })
   @ApiConsumes('application/json')
   @ApiBody({
@@ -56,6 +69,9 @@ export class UniversitiesController {
   }
 
   @Patch(':id')
+  @UseGuards(JwtAuthGuard, GlobalRolesGuard)
+  @GlobalRoles(GlobalRole.SYSTEM_ADMIN)
+  @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'Update a university' })
   @ApiConsumes('application/json')
   @ApiBody({
@@ -79,6 +95,9 @@ export class UniversitiesController {
   }
 
   @Delete(':id')
+  @UseGuards(JwtAuthGuard, GlobalRolesGuard)
+  @GlobalRoles(GlobalRole.SYSTEM_ADMIN)
+  @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'Delete a university' })
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(@Param('id', new ParseUUIDPipe()) id: string): Promise<void> {

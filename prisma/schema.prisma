@@ -15,6 +15,41 @@ enum UniversityStatus {
   INACTIVE
 }
 
+enum GlobalRole {
+  USER
+  SYSTEM_ADMIN
+}
+
+enum AccountStatus {
+  PENDING
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+model Account {
+  id              String        @id @default(uuid())
+  username        String        @unique
+  email           String        @unique
+  passwordHash    String
+  fullName        String
+  phone           String?
+  globalRole      GlobalRole    @default(USER)
+  status          AccountStatus @default(ACTIVE)
+  emailVerifiedAt DateTime?
+  lastLoginAt     DateTime?
+  deletedAt       DateTime?
+
+  schoolUser SchoolUser?
+  auditLogs  AuditLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([globalRole])
+  @@index([status])
+}
+
 model University {
   id           String           @id @default(uuid())
   name         String
@@ -31,6 +66,7 @@ model University {
 }
 
 enum SchoolUserRole {
+  UNIVERSITY_ADMIN
   STAFF
   UNIVERSITY_SUPERVISOR
 }
@@ -43,23 +79,36 @@ enum SchoolUserStatus {
 }
 
 model SchoolUser {
-  id              String           @id @default(uuid())
-  universityId    String
-  fullName        String
-  username        String           @unique
-  email           String
-  phone           String
-  passwordHash    String
-  role            SchoolUserRole
-  status          SchoolUserStatus @default(PENDING)
-  emailVerifiedAt DateTime?
+  id           String           @id @default(uuid())
+  accountId    String           @unique
+  universityId String
+  role         SchoolUserRole
+  status       SchoolUserStatus @default(PENDING)
 
+  account    Account    @relation(fields: [accountId], references: [id], onDelete: Cascade)
   university University @relation(fields: [universityId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([universityId, email])
   @@index([universityId])
   @@index([universityId, role])
+}
+
+model AuditLog {
+  id         String  @id @default(uuid())
+  actorId    String
+  action     String
+  entityType String
+  entityId   String?
+  metadata   Json?
+  ipAddress  String?
+
+  actor Account @relation(fields: [actorId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+
+  @@index([actorId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
 }

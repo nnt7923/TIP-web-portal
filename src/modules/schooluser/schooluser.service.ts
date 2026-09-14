@@ -3,32 +3,57 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import {
+  AccountStatus,
+  GlobalRole,
+  Prisma,
+  SchoolUserStatus,
+} from '@prisma/client';
 import { randomBytes, scrypt } from 'node:crypto';
 import { promisify } from 'node:util';
 import { PrismaService } from '../../database/prisma.service';
 import { CreateSchoolUserDto } from './dto/create-schooluser';
 import { QuerySchoolUserDto } from './dto/query-schooluser';
+import { UpdateSchoolUserDto } from './dto/update-schooluser';
 
 const scryptAsync = promisify(scrypt);
+const safeAccountSelect = {
+  id: true,
+  fullName: true,
+  email: true,
+  username: true,
+  phone: true,
+  globalRole: true,
+  status: true,
+  emailVerifiedAt: true,
+} satisfies Prisma.AccountSelect;
 
 @Injectable()
 export class SchoolUserService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(createSchoolUserDto: CreateSchoolUserDto) {
-    const passwordHash = await this.hashPassword(createSchoolUserDto.password);
-
+  async create(dto: CreateSchoolUserDto) {
     try {
-      return await this.prisma.schoolUser.create({
+      return await this.prisma.account.create({
         data: {
-          universityId: createSchoolUserDto.universityId,
-          fullName: createSchoolUserDto.fullName.trim(),
-          email: createSchoolUserDto.email.trim().toLowerCase(),
-          username: createSchoolUserDto.username.trim(),
-          passwordHash,
-          phone: createSchoolUserDto.phone.trim(),
-          role: createSchoolUserDto.role,
+          fullName: dto.fullName.trim(),
+          email: dto.email.trim().toLowerCase(),
+          username: dto.username.trim(),
+          passwordHash: await this.hashPassword(dto.password),
+          phone: dto.phone.trim(),
+          globalRole: GlobalRole.USER,
+          status: AccountStatus.ACTIVE,
+          schoolUser: {
+            create: {
+              universityId: dto.universityId,
+              role: dto.role,
+              status: SchoolUserStatus.PENDING,
+            },
+          },
+        },
+        select: {
+          ...safeAccountSelect,
+          schoolUser: true,
         },
       });
     } catch (error) {
@@ -36,57 +61,18 @@ export class SchoolUserService {
     }
   }
 
-  private async hashPassword(password: string): Promise<string> {
-    const salt = randomBytes(16).toString('hex');
-    const derivedKey = (await scryptAsync(password, salt, 64)) as Buffer;
-
-    return `${salt}:${derivedKey.toString('hex')}`;
-  }
-
-  private handlePrismaError(error: unknown): never {
-    if (error instanceof Prisma.PrismaClientKnownRequestError) {
-      if (error.code === 'P2002') {
-        throw new ConflictException('Email already exists for this university');
-      }
-
-      if (error.code === 'P2003') {
-        throw new NotFoundException('University was not found');
-      }
-    }
-
-    throw error;
-  }
-
-  //find all user in university
   findAllSchoolUsers(universityId: string, query: QuerySchoolUserDto) {
-    return this.prisma.schoolUser.findMany({
-      where: {
-        universityId,
-        ...(query.status && { status: query.status }),
-        ...(query.role && { role: query.role }),
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
+    return this.findMany({ ...query, universityId });
   }
 
-  //findAll user in all university
   findAll(query: QuerySchoolUserDto) {
-    return this.prisma.schoolUser.findMany({
-      where: {
-        ...(query.status && { status: query.status }),
-        ...(query.role && { role: query.role }),
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
+    return this.findMany(query);
   }
 
   async findOne(id: string) {
     const schoolUser = await this.prisma.schoolUser.findUnique({
       where: { id },
+      include: { account: { select: safeAccountSelect }, university: true },
     });
 
     if (!schoolUser) {
@@ -96,47 +82,94 @@ export class SchoolUserService {
     return schoolUser;
   }
 
-  async update(id: string, updateSchoolUserDto: Partial<CreateSchoolUserDto>) {
-    const currentSchoolUser = await this.findOne(id);
-    const passwordHash = updateSchoolUserDto.password
-      ? await this.hashPassword(updateSchoolUserDto.password)
-      : currentSchoolUser.passwordHash;
+  async update(id: string, dto: UpdateSchoolUserDto) {
+    await this.findOne(id);
+
+    const accountData: Prisma.AccountUpdateInput = {
+      ...(dto.fullName !== undefined && { fullName: dto.fullName.trim() }),
+      ...(dto.email !== undefined && {
+        email: dto.email.trim().toLowerCase(),
+      }),
+      ...(dto.username !== undefined && { username: dto.username.trim() }),
+      ...(dto.phone !== undefined && { phone: dto.phone.trim() }),
+      ...(dto.password !== undefined && {
+        passwordHash: await this.hashPassword(dto.password),
+      }),
+    };
 
     try {
-      const data: Prisma.SchoolUserUpdateInput = {
-        ...updateSchoolUserDto,
-        ...(updateSchoolUserDto.fullName !== undefined && {
-          fullName: updateSchoolUserDto.fullName.trim(),
-        }),
-        ...(updateSchoolUserDto.email !== undefined && {
-          email: updateSchoolUserDto.email.trim().toLowerCase(),
-        }),
-        ...(updateSchoolUserDto.phone !== undefined && {
-          phone: updateSchoolUserDto.phone.trim(),
-        }),
-        passwordHash,
-      };
-
-      const updatedSchoolUser = await this.prisma.schoolUser.update({
+      return await this.prisma.schoolUser.update({
         where: { id },
-        data,
+        data: {
+          ...(dto.role !== undefined && { role: dto.role }),
+          ...(dto.status !== undefined && { status: dto.status }),
+          account: { update: accountData },
+        },
+        include: { account: { select: safeAccountSelect }, university: true },
       });
-
-      return updatedSchoolUser;
     } catch (error) {
       this.handlePrismaError(error);
     }
   }
 
-  async remove(id: string) {
-    await this.findOne(id);
+  async remove(id: string): Promise<void> {
+    const schoolUser = await this.findOne(id);
 
     try {
-      await this.prisma.schoolUser.delete({
-        where: { id },
+      await this.prisma.account.delete({
+        where: { id: schoolUser.accountId },
       });
     } catch (error) {
       this.handlePrismaError(error);
     }
+  }
+
+  private findMany(query: QuerySchoolUserDto & { universityId?: string }) {
+    const keyword = query.keyword?.trim();
+
+    return this.prisma.schoolUser.findMany({
+      where: {
+        ...(query.universityId && { universityId: query.universityId }),
+        ...(query.status && { status: query.status }),
+        ...(query.role && { role: query.role }),
+        ...(keyword && {
+          account: {
+            OR: [
+              { fullName: { contains: keyword, mode: 'insensitive' } },
+              { username: { contains: keyword, mode: 'insensitive' } },
+              { email: { contains: keyword, mode: 'insensitive' } },
+            ],
+          },
+        }),
+      },
+      include: { account: { select: safeAccountSelect }, university: true },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  /** Creates a salted scrypt hash for safe password storage. */
+  private async hashPassword(password: string): Promise<string> {
+    const salt = randomBytes(16).toString('hex');
+    const derivedKey = (await scryptAsync(password, salt, 64)) as Buffer;
+    return `${salt}:${derivedKey.toString('hex')}`;
+  }
+
+  /** Converts known Prisma constraint errors into readable HTTP errors. */
+  private handlePrismaError(error: unknown): never {
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error.code === 'P2002') {
+        throw new ConflictException('Username or email already exists');
+      }
+
+      if (error.code === 'P2003') {
+        throw new NotFoundException('University was not found');
+      }
+
+      if (error.code === 'P2025') {
+        throw new NotFoundException('School user was not found');
+      }
+    }
+
+    throw error;
   }
 }

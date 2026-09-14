@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AuthService } from './auth.service';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { LoginDto } from './dto/login.dto';
@@ -20,10 +21,6 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { RevokeTokenDto } from './dto/revoke-token.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { JwtAuthGuard } from './guards/jwt-auth-guard';
-
-type AuthenticatedRequest = Request & {
-  user: { id: string };
-};
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -76,11 +73,8 @@ export class AuthController {
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Log out the current session' })
-  logout(@Req() request: AuthenticatedRequest) {
-    return this.authService.logout(
-      request.user.id,
-      this.extractBearerToken(request),
-    );
+  logout(@CurrentUser('id') accountId: string, @Req() request: Request) {
+    return this.authService.logout(accountId, this.extractBearerToken(request));
   }
 
   @UseGuards(JwtAuthGuard)
@@ -88,8 +82,8 @@ export class AuthController {
   @Post('logout-all')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Log out every session owned by the current user' })
-  logoutAll(@Req() request: AuthenticatedRequest) {
-    return this.authService.logoutAll(request.user.id);
+  logoutAll(@CurrentUser('id') accountId: string) {
+    return this.authService.logoutAll(accountId);
   }
 
   @UseGuards(JwtAuthGuard)
@@ -98,10 +92,10 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Revoke one access or refresh token' })
   revokeToken(
-    @Req() request: AuthenticatedRequest,
+    @CurrentUser('id') accountId: string,
     @Body() dto: RevokeTokenDto,
   ) {
-    return this.authService.revokeToken(request.user.id, dto.token);
+    return this.authService.revokeToken(accountId, dto.token);
   }
 
   @UseGuards(JwtAuthGuard)
@@ -110,10 +104,10 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Change the current user password' })
   changePassword(
-    @Req() request: AuthenticatedRequest,
+    @CurrentUser('id') accountId: string,
     @Body() dto: ChangePasswordDto,
   ) {
-    return this.authService.changePassword(request.user.id, dto);
+    return this.authService.changePassword(accountId, dto);
   }
 
   /** Reads the access token already validated by JwtAuthGuard. */

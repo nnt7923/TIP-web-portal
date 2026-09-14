@@ -9,8 +9,7 @@ export class VerifyOtpDto {
 
   @ApiPropertyOptional({
     format: 'uuid',
-    description:
-      'Required only when the same email belongs to more than one university.',
+    description: 'Optional additional check for a school account university.',
   })
   @IsOptional()
   @IsUUID()

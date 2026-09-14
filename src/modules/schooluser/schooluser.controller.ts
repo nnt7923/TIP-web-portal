@@ -10,8 +10,22 @@ import {
   Patch,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
+import { SchoolUserRole } from '@prisma/client';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import type { CurrentUserData } from '../../common/decorators/current-user.decorator';
+import { SchoolRoles } from '../../common/decorators/school-roles.decorator';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth-guard';
+import { SchoolRolesGuard } from '../auth/guards/school-roles.guard';
+import { ApproveSchoolUserDto } from './dto/approve-schooluser.dto';
 import { CreateSchoolUserDto } from './dto/create-schooluser';
 import { QuerySchoolUserDto } from './dto/query-schooluser';
 import { UpdateSchoolUserDto } from './dto/update-schooluser';
@@ -103,6 +117,19 @@ export class SchoolUserController {
     @Body() updateSchoolUserDto: UpdateSchoolUserDto,
   ) {
     return this.schoolUserService.update(id, updateSchoolUserDto);
+  }
+
+  @Patch(':id/approval')
+  @UseGuards(JwtAuthGuard, SchoolRolesGuard)
+  @SchoolRoles(SchoolUserRole.UNIVERSITY_ADMIN)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Approve a school user in the same university' })
+  approve(
+    @CurrentUser() currentUser: CurrentUserData,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: ApproveSchoolUserDto,
+  ) {
+    return this.schoolUserService.approve(currentUser, id, dto);
   }
 
   @Delete(':id')

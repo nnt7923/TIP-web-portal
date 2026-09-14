@@ -2,6 +2,7 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  ForbiddenException ,
 } from '@nestjs/common';
 import {
   AccountStatus,
@@ -11,10 +12,12 @@ import {
 } from '@prisma/client';
 import { randomBytes, scrypt } from 'node:crypto';
 import { promisify } from 'node:util';
+import type { CurrentUserData } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../database/prisma.service';
 import { CreateSchoolUserDto } from './dto/create-schooluser';
 import { QuerySchoolUserDto } from './dto/query-schooluser';
 import { UpdateSchoolUserDto } from './dto/update-schooluser';
+import { ApproveSchoolUserDto } from './dto/approve-schooluser.dto';
 
 const scryptAsync = promisify(scrypt);
 const safeAccountSelect = {
@@ -144,6 +147,49 @@ export class SchoolUserService {
       },
       include: { account: { select: safeAccountSelect }, university: true },
       orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async approve(
+    currentUser: CurrentUserData,
+    schoolUserId: string,
+    dto: ApproveSchoolUserDto,
+  ) {
+    const adminProfile = currentUser.schoolUser;
+
+    if (!adminProfile) {
+      throw new ForbiddenException('School user profile was not found');
+    }
+
+    const targetUser = await this.prisma.schoolUser.findUnique({
+      where: { id: schoolUserId },
+      select: {
+        id: true,
+        universityId: true,
+        status: true,
+      },
+    });
+
+    if (!targetUser) {
+      throw new NotFoundException('School user was not found');
+    }
+
+    if (targetUser.universityId !== adminProfile.universityId) {
+      throw new ForbiddenException('You cannot manage users from anther university');
+    }
+
+    return this.prisma.schoolUser.update({
+      where: { id: schoolUserId },
+      data: {
+        role: dto.role,
+        status: SchoolUserStatus.ACTIVE,
+      },
+      include: {
+        account: {
+          select: safeAccountSelect,
+        },
+        university: true
+      },
     });
   }
 

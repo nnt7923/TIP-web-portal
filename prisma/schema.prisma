@@ -43,15 +43,16 @@ enum SchoolUserStatus {
 }
 
 model SchoolUser {
-  id           String           @id @default(uuid())
-  universityId String
-  fullName     String
-  username     String           @unique
-  email        String
-  phone        String
-  passwordHash String
-  role         SchoolUserRole
-  status       SchoolUserStatus @default(ACTIVE)
+  id              String           @id @default(uuid())
+  universityId    String
+  fullName        String
+  username        String           @unique
+  email           String
+  phone           String
+  passwordHash    String
+  role            SchoolUserRole
+  status          SchoolUserStatus @default(PENDING)
+  emailVerifiedAt DateTime?
 
   university University @relation(fields: [universityId], references: [id])
 

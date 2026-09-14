@@ -9,6 +9,7 @@ import { RedisModule } from './redis/redis.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { EmailModule } from './email/email.module';
 import { SystemAdminModule } from './modules/system-admin/system-admin.module';
+import { SchoolUserModule } from './modules/schooluser/schooluser.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { SystemAdminModule } from './modules/system-admin/system-admin.module';
     AuthModule,
     EmailModule,
     SystemAdminModule,
+    SchoolUserModule,
   ],
 })
 export class AppModule {}

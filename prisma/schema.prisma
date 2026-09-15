@@ -60,6 +60,7 @@ model University {
   logoPublicId String?
   status       UniversityStatus @default(PENDING)
   schoolUsers  SchoolUser[]
+  majors       Major[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -93,6 +94,22 @@ model SchoolUser {
 
   @@index([universityId])
   @@index([universityId, role])
+}
+
+model Major {
+  id           String  @id @default(uuid())
+  universityId String
+  name         String
+  code         String?
+
+  university University @relation(fields: [universityId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([universityId, name])
+  @@unique([universityId, code])
+  @@index([universityId])
 }
 
 model AuditLog {

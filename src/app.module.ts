@@ -10,6 +10,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { EmailModule } from './email/email.module';
 import { SystemAdminModule } from './modules/system-admin/system-admin.module';
 import { SchoolUserModule } from './modules/schooluser/schooluser.module';
+import { MajorModule } from './modules/major/major.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { SchoolUserModule } from './modules/schooluser/schooluser.module';
     EmailModule,
     SystemAdminModule,
     SchoolUserModule,
+    MajorModule,
   ],
 })
 export class AppModule {}

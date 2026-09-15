@@ -2,7 +2,7 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
-  ForbiddenException ,
+  ForbiddenException,
 } from '@nestjs/common';
 import {
   AccountStatus,
@@ -175,7 +175,9 @@ export class SchoolUserService {
     }
 
     if (targetUser.universityId !== adminProfile.universityId) {
-      throw new ForbiddenException('You cannot manage users from anther university');
+      throw new ForbiddenException(
+        'You cannot manage users from anther university',
+      );
     }
 
     return this.prisma.schoolUser.update({
@@ -188,7 +190,7 @@ export class SchoolUserService {
         account: {
           select: safeAccountSelect,
         },
-        university: true
+        university: true,
       },
     });
   }

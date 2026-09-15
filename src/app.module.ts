@@ -11,6 +11,7 @@ import { EmailModule } from './email/email.module';
 import { SystemAdminModule } from './modules/system-admin/system-admin.module';
 import { SchoolUserModule } from './modules/schooluser/schooluser.module';
 import { MajorModule } from './modules/major/major.module';
+import { AcademicYearModule } from './modules/academic-year/academic-year.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { MajorModule } from './modules/major/major.module';
     SystemAdminModule,
     SchoolUserModule,
     MajorModule,
+    AcademicYearModule,
   ],
 })
 export class AppModule {}

@@ -11,11 +11,24 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import { CreateMajorDto } from './dto/create-major.dto';
 import { QueryMajorDto } from './dto/query-major.dto';
 import { UpdateMajorDto } from './dto/update-major.dto';
 import { MajorService } from './major.service';
+import { UseGuards } from '@nestjs/common';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth-guard';
+import { SchoolRoles } from '../../common/decorators/school-roles.decorator';
+import { SchoolRolesGuard } from '../auth/guards/school-roles.guard';
+import { SchoolUserRole } from '@prisma/client';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import type { CurrentUserData } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('Majors')
 @Controller('majors')
@@ -23,24 +36,26 @@ export class MajorController {
   constructor(private readonly majorService: MajorService) {}
 
   @Post()
+  @UseGuards(JwtAuthGuard, SchoolRolesGuard)
+  @SchoolRoles(SchoolUserRole.UNIVERSITY_ADMIN)
+  @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'Create a major' })
   @ApiConsumes('application/json')
   @ApiBody({
     schema: {
       type: 'object',
-      required: ['universityId', 'name', 'code'],
+      required: ['name', 'code'],
       properties: {
-        universityId: {
-          type: 'string',
-          format: 'uuid',
-        },
         name: { type: 'string' },
         code: { type: 'string' },
       },
     },
   })
-  create(@Body() createMajorDto: CreateMajorDto) {
-    return this.majorService.create(createMajorDto);
+  create(
+    @CurrentUser() currentUser: CurrentUserData,
+    @Body() createMajorDto: CreateMajorDto,
+  ) {
+    return this.majorService.create(currentUser, createMajorDto);
   }
 
   @Get()
@@ -50,6 +65,9 @@ export class MajorController {
   }
 
   @Patch(':id')
+  @UseGuards(JwtAuthGuard, SchoolRolesGuard)
+  @SchoolRoles(SchoolUserRole.UNIVERSITY_ADMIN)
+  @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'Update a major ' })
   @ApiConsumes('application/json')
   @ApiBody({
@@ -62,16 +80,23 @@ export class MajorController {
     },
   })
   update(
+    @CurrentUser() currentUser: CurrentUserData,
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() updateMajorDto: UpdateMajorDto,
   ) {
-    return this.majorService.update(id, updateMajorDto);
+    return this.majorService.update(currentUser, id, updateMajorDto);
   }
 
   @Delete(':id')
+  @UseGuards(JwtAuthGuard, SchoolRolesGuard)
+  @SchoolRoles(SchoolUserRole.UNIVERSITY_ADMIN)
+  @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'Delete a major' })
   @HttpCode(HttpStatus.NO_CONTENT)
-  async remove(@Param('id', new ParseUUIDPipe()) id: string): Promise<void> {
-    await this.majorService.remove(id);
+  async remove(
+    @CurrentUser() currentUser: CurrentUserData,
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ): Promise<void> {
+    await this.majorService.remove(currentUser, id);
   }
 }

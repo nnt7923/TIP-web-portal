@@ -51,16 +51,17 @@ model Account {
 }
 
 model University {
-  id           String           @id @default(uuid())
-  name         String
-  code         String           @unique
-  website      String?
-  address      String?
-  logoUrl      String?
-  logoPublicId String?
-  status       UniversityStatus @default(PENDING)
-  schoolUsers  SchoolUser[]
-  majors       Major[]
+  id            String           @id @default(uuid())
+  name          String
+  code          String           @unique
+  website       String?
+  address       String?
+  logoUrl       String?
+  logoPublicId  String?
+  status        UniversityStatus @default(PENDING)
+  schoolUsers   SchoolUser[]
+  majors        Major[]
+  academicYears AcademicYear[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -110,6 +111,25 @@ model Major {
   @@unique([universityId, name])
   @@unique([universityId, code])
   @@index([universityId])
+}
+
+enum AcademicYearStatus {
+  ACTIVE
+  INACTIVE
+}
+
+model AcademicYear {
+  id           String             @id @default(uuid())
+  universityId String
+  name         String
+  startDate    DateTime
+  endDate      DateTime
+  status       AcademicYearStatus @default(ACTIVE)
+
+  university University @relation(fields: [universityId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model AuditLog {

@@ -1,9 +1,6 @@
-import { IsString, IsNotEmpty, IsUUID } from 'class-validator';
+import { IsString, IsNotEmpty } from 'class-validator';
 
 export class CreateMajorDto {
-  @IsUUID()
-  universityId: string;
-
   @IsString()
   @IsNotEmpty()
   name: string;

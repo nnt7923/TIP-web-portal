@@ -74,6 +74,8 @@ export class AcademicYearController {
   }
 
   @Get()
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'Get and filter academic year' })
   findAll(@Query() query: QueryAcademicYearDto) {
     return this.academicYearService.findAll(query);

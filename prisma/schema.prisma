@@ -130,6 +130,9 @@ model AcademicYear {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@unique([universityId, name])
+  @@index([universityId])
 }
 
 model AuditLog {

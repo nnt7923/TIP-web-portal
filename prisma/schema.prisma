@@ -41,6 +41,7 @@ model Account {
   deletedAt       DateTime?
 
   schoolUser SchoolUser?
+  student    Student?
   auditLogs  AuditLog[]
 
   createdAt DateTime @default(now())
@@ -63,6 +64,7 @@ model University {
   majors            Major[]
   academicYears     AcademicYear[]
   internshipPeriods InternshipPeriod[]
+  students          Student[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -103,6 +105,8 @@ model Major {
   universityId String
   name         String
   code         String?
+
+  students Student[]
 
   university University @relation(fields: [universityId], references: [id])
 
@@ -146,18 +150,19 @@ enum InternshipPeriodStatus {
 }
 
 model InternshipPeriod {
-  id             String                 @id @default(uuid())
-  universityId   String
-  academicYearId String
-  name           String
-  periodNumber   Int
-  startDate      DateTime
-  endDate        DateTime
-  applyStartDate DateTime?
-  applyEndDate   DateTime?
-  requiredHours  Int?
-  requiredWeeks  Int?
-  status         InternshipPeriodStatus @default(DRAFT)
+  id                 String                 @id @default(uuid())
+  universityId       String
+  academicYearId     String
+  name               String
+  periodNumber       Int
+  startDate          DateTime
+  endDate            DateTime
+  applyStartDate     DateTime?
+  applyEndDate       DateTime?
+  requiredHours      Int?
+  requiredWeeks      Int?
+  status             InternshipPeriodStatus @default(DRAFT)
+  studentInternships StudentInternship[]
 
   university   University   @relation(fields: [universityId], references: [id])
   academicYear AcademicYear @relation(fields: [academicYearId], references: [id])
@@ -168,6 +173,68 @@ model InternshipPeriod {
   @@unique([academicYearId, periodNumber])
   @@index([universityId])
   @@index([academicYearId])
+}
+
+enum StudentInternshipStatus {
+  NOT_ASSIGNED
+  READY
+  APPLYING
+  PLACED
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+}
+
+enum StudentStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+model Student {
+  id           String @id @default(uuid())
+  accountId    String @unique
+  universityId String
+  majorId      String
+
+  studentCode String
+  semester    Int?
+  className   String?
+  cvUrl       String?
+  cvPublicId  String?
+
+  status StudentStatus @default(ACTIVE)
+
+  internships StudentInternship[]
+
+  account    Account    @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  university University @relation(fields: [universityId], references: [id], onDelete: Restrict)
+  major      Major      @relation(fields: [majorId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([universityId, studentCode])
+  @@index([universityId])
+  @@index([majorId])
+  @@index([status])
+}
+
+model StudentInternship {
+  id                 String @id @default(uuid())
+  studentId          String
+  internshipPeriodId String
+
+  status StudentInternshipStatus @default(READY)
+
+  student          Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  internshipPeriod InternshipPeriod @relation(fields: [internshipPeriodId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([studentId, internshipPeriodId])
+  @@index([internshipPeriodId])
 }
 
 model AuditLog {

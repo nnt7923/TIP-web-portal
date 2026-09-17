@@ -13,6 +13,7 @@ import { SchoolUserModule } from './modules/schooluser/schooluser.module';
 import { MajorModule } from './modules/major/major.module';
 import { AcademicYearModule } from './modules/academic-year/academic-year.module';
 import { InternshipPeriodModule } from './modules/internship-period/internship-period.module';
+import { StudentModule } from './modules/student/student.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { InternshipPeriodModule } from './modules/internship-period/internship-p
     MajorModule,
     AcademicYearModule,
     InternshipPeriodModule,
+    StudentModule,
   ],
 })
 export class AppModule {}

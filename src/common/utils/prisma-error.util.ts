@@ -19,6 +19,17 @@ export function handlePrismaError(
     if (error.code === 'P2025' && messages.notFound) {
       throw new NotFoundException(messages.notFound);
     }
+
+    if (error.code === 'P2003') {
+      throw new ConflictException(
+        'Operation conflicts with related records. Check referenced IDs or remove dependencies first.',
+      );
+    }
+    if (error.code === 'P2034') {
+      throw new ConflictException(
+        'Data changed concurrently. Please retry the request.',
+      );
+    }
   }
 
   throw error;

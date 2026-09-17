@@ -8,6 +8,7 @@ import {
   GlobalRole,
   SchoolUserRole,
   SchoolUserStatus,
+  StudentStatus,
 } from '@prisma/client';
 import type { Request } from 'express';
 
@@ -24,6 +25,11 @@ export type CurrentUserData = {
     universityId: string;
     role: SchoolUserRole;
     status: SchoolUserStatus;
+  } | null;
+  student: {
+    id: string;
+    universityId: string;
+    status: StudentStatus;
   } | null;
 };
 

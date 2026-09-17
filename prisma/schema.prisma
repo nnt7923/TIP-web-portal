@@ -51,17 +51,18 @@ model Account {
 }
 
 model University {
-  id            String           @id @default(uuid())
-  name          String
-  code          String           @unique
-  website       String?
-  address       String?
-  logoUrl       String?
-  logoPublicId  String?
-  status        UniversityStatus @default(PENDING)
-  schoolUsers   SchoolUser[]
-  majors        Major[]
-  academicYears AcademicYear[]
+  id                String             @id @default(uuid())
+  name              String
+  code              String             @unique
+  website           String?
+  address           String?
+  logoUrl           String?
+  logoPublicId      String?
+  status            UniversityStatus   @default(PENDING)
+  schoolUsers       SchoolUser[]
+  majors            Major[]
+  academicYears     AcademicYear[]
+  internshipPeriods InternshipPeriod[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -126,13 +127,47 @@ model AcademicYear {
   endDate      DateTime
   status       AcademicYearStatus @default(ACTIVE)
 
-  university University @relation(fields: [universityId], references: [id])
+  university        University         @relation(fields: [universityId], references: [id])
+  internshipPeriods InternshipPeriod[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([universityId, name])
   @@index([universityId])
+}
+
+enum InternshipPeriodStatus {
+  DRAFT
+  OPEN
+  ONGOING
+  COMPLETED
+  CANCELLED
+}
+
+model InternshipPeriod {
+  id             String                 @id @default(uuid())
+  universityId   String
+  academicYearId String
+  name           String
+  periodNumber   Int
+  startDate      DateTime
+  endDate        DateTime
+  applyStartDate DateTime?
+  applyEndDate   DateTime?
+  requiredHours  Int?
+  requiredWeeks  Int?
+  status         InternshipPeriodStatus @default(DRAFT)
+
+  university   University   @relation(fields: [universityId], references: [id])
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([academicYearId, periodNumber])
+  @@index([universityId])
+  @@index([academicYearId])
 }
 
 model AuditLog {

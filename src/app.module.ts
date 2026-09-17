@@ -12,6 +12,7 @@ import { SystemAdminModule } from './modules/system-admin/system-admin.module';
 import { SchoolUserModule } from './modules/schooluser/schooluser.module';
 import { MajorModule } from './modules/major/major.module';
 import { AcademicYearModule } from './modules/academic-year/academic-year.module';
+import { InternshipPeriodModule } from './modules/internship-period/internship-period.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { AcademicYearModule } from './modules/academic-year/academic-year.module
     SchoolUserModule,
     MajorModule,
     AcademicYearModule,
+    InternshipPeriodModule,
   ],
 })
 export class AppModule {}

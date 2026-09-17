@@ -4,14 +4,10 @@ import {
   IsOptional,
   IsEnum,
   IsDateString,
-  IsUUID,
 } from 'class-validator';
 import { AcademicYearStatus } from '@prisma/client';
 
 export class CreateAcademicYearDto {
-  @IsUUID()
-  universityId: string;
-
   @IsString()
   @IsNotEmpty()
   name: string;

@@ -4,15 +4,15 @@ import { AcademicYearStatus } from '@prisma/client';
 export class UpdateAcademicYearDto {
   @IsString()
   @IsOptional()
-  name: string;
+  name?: string;
 
   @IsDateString()
   @IsOptional()
-  startDate: string;
+  startDate?: string;
 
   @IsDateString()
   @IsOptional()
-  endDate: string;
+  endDate?: string;
 
   @IsOptional()
   @IsEnum(AcademicYearStatus)

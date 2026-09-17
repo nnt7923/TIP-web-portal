@@ -1,3 +1,4 @@
+import { Trim } from '../../../common/decorators/validation.decorators';
 import { SchoolUserRole } from '@prisma/client';
 import {
   IsEmail,
@@ -14,13 +15,16 @@ export class RegisterDto {
 
   @IsString()
   @IsNotEmpty()
+  @Trim()
   fullName: string;
 
   @IsEmail()
+  @Trim()
   email: string;
 
   @IsString()
   @IsNotEmpty()
+  @Trim()
   username: string;
 
   @IsString()
@@ -30,6 +34,7 @@ export class RegisterDto {
 
   @IsString()
   @IsNotEmpty()
+  @Trim()
   phone: string;
 
   @IsEnum(SchoolUserRole)

@@ -1,28 +1,39 @@
-import { IsEnum, IsOptional, IsString, IsUrl } from 'class-validator';
+import {
+  IsOptionalNotNull,
+  Trim,
+} from '../../../common/decorators/validation.decorators';
+import { IsNotEmpty } from 'class-validator';
+import { IsEnum, IsString, IsUrl } from 'class-validator';
 import { UniversityStatus } from '@prisma/client';
 
 export class UpdateUniversityDto {
-  @IsOptional()
+  @IsOptionalNotNull()
   @IsString()
+  @Trim()
+  @IsNotEmpty()
   name?: string;
 
-  @IsOptional()
+  @IsOptionalNotNull()
   @IsString()
+  @Trim()
+  @IsNotEmpty()
   code?: string;
 
-  @IsOptional()
+  @IsOptionalNotNull()
   @IsUrl()
   website?: string;
 
-  @IsOptional()
+  @IsOptionalNotNull()
   @IsString()
+  @Trim()
   address?: string;
 
-  @IsOptional()
+  @IsOptionalNotNull()
   @IsString()
+  @Trim()
   logoUrl?: string;
 
-  @IsOptional()
+  @IsOptionalNotNull()
   @IsEnum(UniversityStatus)
   status?: UniversityStatus;
 }

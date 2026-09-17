@@ -1,20 +1,26 @@
-import { IsString, IsOptional, IsEnum, IsDateString } from 'class-validator';
+import {
+  IsOptionalNotNull,
+  Trim,
+} from '../../../common/decorators/validation.decorators';
+import { IsNotEmpty, IsString, IsEnum, IsDateString } from 'class-validator';
 import { AcademicYearStatus } from '@prisma/client';
 
 export class UpdateAcademicYearDto {
   @IsString()
-  @IsOptional()
+  @IsOptionalNotNull()
+  @Trim()
+  @IsNotEmpty()
   name?: string;
 
   @IsDateString()
-  @IsOptional()
+  @IsOptionalNotNull()
   startDate?: string;
 
   @IsDateString()
-  @IsOptional()
+  @IsOptionalNotNull()
   endDate?: string;
 
-  @IsOptional()
+  @IsOptionalNotNull()
   @IsEnum(AcademicYearStatus)
   status?: AcademicYearStatus;
 }

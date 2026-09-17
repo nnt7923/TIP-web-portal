@@ -1,7 +1,11 @@
 import {
+  IsOptionalNotNull,
+  Trim,
+} from '../../../common/decorators/validation.decorators';
+import {
+  IsNotEmpty,
   IsEnum,
   IsInt,
-  IsOptional,
   IsString,
   IsUUID,
   Max,
@@ -11,14 +15,17 @@ import { StudentStatus } from '@prisma/client';
 import { Type } from 'class-transformer';
 
 export class UpdateStudentDto {
-  @IsOptional()
+  @IsOptionalNotNull()
   @IsUUID()
   majorId?: string;
 
   @IsString()
-  @IsOptional()
+  @IsOptionalNotNull()
+  @Trim()
+  @IsNotEmpty()
   studentCode?: string;
 
+  @IsOptionalNotNull()
   @IsInt()
   @Type(() => Number)
   @Min(1)
@@ -26,14 +33,16 @@ export class UpdateStudentDto {
   semester?: number;
 
   @IsString()
-  @IsOptional()
+  @IsOptionalNotNull()
+  @Trim()
   className?: string;
 
-  @IsOptional()
+  @IsOptionalNotNull()
   @IsString()
+  @Trim()
   cvUrl?: string;
 
-  @IsOptional()
+  @IsOptionalNotNull()
   @IsEnum(StudentStatus)
   status?: StudentStatus;
 }

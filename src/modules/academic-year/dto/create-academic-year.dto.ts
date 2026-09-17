@@ -1,3 +1,4 @@
+import { Trim } from '../../../common/decorators/validation.decorators';
 import {
   IsString,
   IsNotEmpty,
@@ -10,6 +11,7 @@ import { AcademicYearStatus } from '@prisma/client';
 export class CreateAcademicYearDto {
   @IsString()
   @IsNotEmpty()
+  @Trim()
   name: string;
 
   @IsDateString()

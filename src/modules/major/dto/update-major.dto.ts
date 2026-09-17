@@ -1,11 +1,19 @@
-import { IsString, IsOptional } from 'class-validator';
+import {
+  IsOptionalNotNull,
+  Trim,
+} from '../../../common/decorators/validation.decorators';
+import { IsNotEmpty, IsString } from 'class-validator';
 
 export class UpdateMajorDto {
-  @IsOptional()
+  @IsOptionalNotNull()
   @IsString()
+  @Trim()
+  @IsNotEmpty()
   name?: string;
 
-  @IsOptional()
+  @IsOptionalNotNull()
   @IsString()
+  @Trim()
+  @IsNotEmpty()
   code?: string;
 }

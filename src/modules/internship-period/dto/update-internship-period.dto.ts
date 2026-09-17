@@ -1,50 +1,58 @@
 import {
+  IsOptionalNotNull,
+  Trim,
+} from '../../../common/decorators/validation.decorators';
+import {
+  IsNotEmpty,
   IsString,
   IsEnum,
   IsDateString,
   IsInt,
-  IsOptional,
   Min,
   Max,
 } from 'class-validator';
 import { InternshipPeriodStatus } from '@prisma/client';
 
 export class UpdateInternShipPeriodDto {
-  @IsOptional()
+  @IsOptionalNotNull()
   @IsString()
+  @Trim()
+  @IsNotEmpty()
   name?: string;
 
-  @IsOptional()
+  @IsOptionalNotNull()
   @IsInt()
   @Min(1)
   @Max(3)
   periodNumber?: number;
 
   @IsDateString()
-  @IsOptional()
+  @IsOptionalNotNull()
   startDate?: string;
 
   @IsDateString()
-  @IsOptional()
+  @IsOptionalNotNull()
   endDate?: string;
 
   @IsDateString()
-  @IsOptional()
+  @IsOptionalNotNull()
   applyStartDate?: string;
 
   @IsDateString()
-  @IsOptional()
+  @IsOptionalNotNull()
   applyEndDate?: string;
 
-  @IsOptional()
+  @IsOptionalNotNull()
   @IsInt()
+  @Min(1)
   requiredHours?: number;
 
-  @IsOptional()
+  @IsOptionalNotNull()
   @IsInt()
+  @Min(1)
   requiredWeeks?: number;
 
-  @IsOptional()
+  @IsOptionalNotNull()
   @IsEnum(InternshipPeriodStatus)
   status?: InternshipPeriodStatus;
 }

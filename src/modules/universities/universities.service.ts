@@ -86,6 +86,7 @@ export class UniversitiesService {
   }
 
   async update(
+    actorId: string,
     id: string,
     updateUniversityDto: UpdateUniversityDto,
     file?: { buffer: Buffer },
@@ -119,18 +120,41 @@ export class UniversitiesService {
       data.logoUrl = uploadedLogo.secure_url;
       data.logoPublicId = uploadedLogo.public_id;
       uploadedLogoPublicId = uploadedLogo.public_id;
-    } else if (requestedLogoUrl !== undefined) {
-      data.logoUrl = normalizeOptionalText(requestedLogoUrl);
+    } else if (
+      requestedLogoUrl !== undefined &&
+      normalizeOptionalText(requestedLogoUrl) !== currentUniversity.logoUrl
+    ) {
+      data.logoUrl = normalizeOptionalText(requestedLogoUrl) || null;
       data.logoPublicId = null;
     }
 
     try {
-      const updatedUniversity = await this.prisma.university.update({
-        where: { id },
-        data,
+      const updatedUniversity = await this.prisma.$transaction(async (tx) => {
+        const before = await tx.university.findUniqueOrThrow({
+          where: { id },
+          select: { status: true },
+        });
+        const updated = await tx.university.update({ where: { id }, data });
+        if (
+          updateUniversityDto.status !== undefined &&
+          before.status !== updated.status
+        ) {
+          await tx.auditLog.create({
+            data: {
+              actorId,
+              action: 'UNIVERSITY_STATUS_UPDATED',
+              entityType: 'University',
+              entityId: id,
+              metadata: { from: before.status, to: updated.status },
+            },
+          });
+        }
+        return updated;
       });
 
-      const logoWasReplaced = file || requestedLogoUrl !== undefined;
+      const logoWasReplaced =
+        data.logoUrl !== undefined &&
+        data.logoUrl !== currentUniversity.logoUrl;
       if (logoWasReplaced && currentUniversity.logoPublicId) {
         await this.cloudinaryService.destroySafely(
           currentUniversity.logoPublicId,

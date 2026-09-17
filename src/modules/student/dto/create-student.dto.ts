@@ -1,3 +1,4 @@
+import { Trim } from '../../../common/decorators/validation.decorators';
 import {
   IsString,
   IsInt,
@@ -6,18 +7,41 @@ import {
   Min,
   Max,
   IsUUID,
+  IsEmail,
+  MinLength,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateStudentDto {
-  @IsUUID()
-  accountId: string;
+  @IsString()
+  @IsNotEmpty()
+  @Trim()
+  fullName: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @Trim()
+  username: string;
+
+  @IsEmail()
+  @Trim()
+  email: string;
+
+  @IsString()
+  @MinLength(8)
+  password: string;
+
+  @IsOptional()
+  @IsString()
+  @Trim()
+  phone?: string;
 
   @IsUUID()
   majorId: string;
 
   @IsString()
   @IsNotEmpty()
+  @Trim()
   studentCode: string;
 
   @IsInt()
@@ -28,9 +52,11 @@ export class CreateStudentDto {
 
   @IsString()
   @IsNotEmpty()
+  @Trim()
   className: string;
 
   @IsOptional()
   @IsString()
+  @Trim()
   cvUrl?: string;
 }

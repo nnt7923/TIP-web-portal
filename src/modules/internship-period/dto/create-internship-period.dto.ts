@@ -1,3 +1,4 @@
+import { Trim } from '../../../common/decorators/validation.decorators';
 import {
   IsString,
   IsEnum,
@@ -17,6 +18,7 @@ export class CreateInternShipPeriodDto {
 
   @IsNotEmpty()
   @IsString()
+  @Trim()
   name: string;
 
   @IsNotEmpty()
@@ -43,10 +45,12 @@ export class CreateInternShipPeriodDto {
 
   @IsNotEmpty()
   @IsInt()
+  @Min(1)
   requiredHours: number;
 
   @IsNotEmpty()
   @IsInt()
+  @Min(1)
   requiredWeeks: number;
 
   @IsOptional()

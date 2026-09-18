@@ -1,19 +1,28 @@
-import { IsEmail, IsOptional, IsString } from 'class-validator';
+import {
+  IsOptionalNotNull,
+  Trim,
+} from '../../../common/decorators/validation.decorators';
+import { IsNotEmpty } from 'class-validator';
+import { IsEmail, IsString } from 'class-validator';
 
 export class UpdateSchoolUserProfileDto {
-  @IsOptional()
+  @IsOptionalNotNull()
   @IsString()
+  @Trim()
+  @IsNotEmpty()
   fullName?: string;
 
-  @IsOptional()
+  @IsOptionalNotNull()
   @IsEmail()
+  @Trim()
   email?: string;
 
-  @IsOptional()
+  @IsOptionalNotNull()
   @IsString()
+  @Trim()
   phone?: string;
 
-  @IsOptional()
+  @IsOptionalNotNull()
   @IsString()
   password?: string;
 }

@@ -31,6 +31,8 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { CurrentUserData } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('Majors')
+@UseGuards(JwtAuthGuard)
+@ApiBearerAuth('access-token')
 @Controller('majors')
 export class MajorController {
   constructor(private readonly majorService: MajorService) {}
@@ -59,9 +61,21 @@ export class MajorController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Get and filter universities' })
-  findAll(@Query() query: QueryMajorDto) {
-    return this.majorService.findAll(query);
+  @ApiOperation({ summary: 'Get and filter majors in the current university' })
+  findAll(
+    @CurrentUser() currentUser: CurrentUserData,
+    @Query() query: QueryMajorDto,
+  ) {
+    return this.majorService.findAll(currentUser, query);
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Get a major in the current university' })
+  findOne(
+    @CurrentUser() currentUser: CurrentUserData,
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ) {
+    return this.majorService.findOne(currentUser, id);
   }
 
   @Patch(':id')

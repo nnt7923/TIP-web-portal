@@ -1,8 +1,5 @@
-import {
-  Injectable,
-  NotFoundException,
-  ForbiddenException,
-} from '@nestjs/common';
+import { getUniversityId } from '../../common/utils/university-scope.util';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import type { CurrentUserData } from '../../common/decorators/current-user.decorator';
 import { Prisma } from '@prisma/client';
 import { handlePrismaError } from '../../common/utils/prisma-error.util';
@@ -33,9 +30,10 @@ export class MajorService {
     }
   }
 
-  findAll(query: QueryMajorDto) {
+  findAll(currentUser: CurrentUserData, query: QueryMajorDto) {
     const keyword = query.keyword?.trim();
     const where: Prisma.MajorWhereInput = {
+      universityId: this.getUniversityId(currentUser),
       ...(keyword && {
         OR: [
           { name: { contains: keyword, mode: 'insensitive' } },
@@ -50,9 +48,9 @@ export class MajorService {
     });
   }
 
-  async findOne(id: string) {
+  async findOne(currentUser: CurrentUserData, id: string) {
     const major = await this.prisma.major.findUnique({
-      where: { id },
+      where: { id, universityId: this.getUniversityId(currentUser) },
     });
 
     if (!major) {
@@ -83,7 +81,7 @@ export class MajorService {
 
     try {
       const updateMajor = await this.prisma.major.update({
-        where: { id },
+        where: { id, universityId },
         data,
       });
 
@@ -98,11 +96,7 @@ export class MajorService {
 
   /** Lấy trường của SchoolUser đang đăng nhập. */
   private getUniversityId(currentUser: CurrentUserData): string {
-    if (!currentUser.schoolUser) {
-      throw new ForbiddenException('School user profile was not found');
-    }
-
-    return currentUser.schoolUser.universityId;
+    return getUniversityId(currentUser);
   }
 
   private async findOneInUniversity(id: string, universityId: string) {
@@ -125,8 +119,10 @@ export class MajorService {
 
     await this.findOneInUniversity(id, universityId);
 
-    await this.prisma.major.delete({
-      where: { id },
-    });
+    try {
+      await this.prisma.major.delete({ where: { id, universityId } });
+    } catch (error) {
+      handlePrismaError(error, { notFound: 'Major was not found' });
+    }
   }
 }

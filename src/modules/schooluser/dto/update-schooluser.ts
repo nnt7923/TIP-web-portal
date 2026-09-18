@@ -1,32 +1,57 @@
+import {
+  IsOptionalNotNull,
+  Trim,
+} from '../../../common/decorators/validation.decorators';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { SchoolUserRole, SchoolUserStatus } from '@prisma/client';
-import { IsEmail, IsEnum, IsOptional, IsString } from 'class-validator';
+import {
+  IsEmail,
+  IsEnum,
+  IsNotEmpty,
+  IsString,
+  MinLength,
+} from 'class-validator';
 
 export class UpdateSchoolUserDto {
-  @IsOptional()
+  @ApiPropertyOptional()
+  @IsOptionalNotNull()
   @IsString()
+  @Trim()
+  @IsNotEmpty()
   fullName?: string;
 
-  @IsOptional()
+  @ApiPropertyOptional({ format: 'email' })
+  @IsOptionalNotNull()
   @IsEmail()
+  @Trim()
   email?: string;
 
-  @IsOptional()
+  @ApiPropertyOptional()
+  @IsOptionalNotNull()
   @IsString()
+  @Trim()
+  @IsNotEmpty()
   username?: string;
 
-  @IsOptional()
+  @ApiPropertyOptional()
+  @IsOptionalNotNull()
   @IsString()
+  @Trim()
   phone?: string;
 
-  @IsOptional()
+  @ApiPropertyOptional({ format: 'password', minLength: 8 })
+  @IsOptionalNotNull()
   @IsString()
+  @MinLength(8)
   password?: string;
 
-  @IsOptional()
+  @ApiPropertyOptional({ enum: SchoolUserRole, enumName: 'SchoolUserRole' })
+  @IsOptionalNotNull()
   @IsEnum(SchoolUserRole)
   role?: SchoolUserRole;
 
-  @IsOptional()
+  @ApiPropertyOptional({ enum: SchoolUserStatus, enumName: 'SchoolUserStatus' })
+  @IsOptionalNotNull()
   @IsEnum(SchoolUserStatus)
   status?: SchoolUserStatus;
 }

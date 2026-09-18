@@ -26,6 +26,9 @@ const accountSelect = {
   deletedAt: true,
   createdAt: true,
   updatedAt: true,
+  student: {
+    select: { id: true, universityId: true, studentCode: true, status: true },
+  },
   schoolUser: {
     select: {
       id: true,

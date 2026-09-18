@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { GlobalRole, Prisma } from '@prisma/client';
 import { CloudinaryService } from '../../cloudinary/cloudinary.service';
 import type { CurrentUserData } from '../../common/decorators/current-user.decorator';
 import { handlePrismaError } from '../../common/utils/prisma-error.util';
@@ -16,6 +16,9 @@ import { PrismaService } from '../../database/prisma.service';
 import { CreateStudentDto } from './dto/create-student.dto';
 import { QueryStudentDto } from './dto/query-student.dto';
 import { UpdateStudentDto } from './dto/update-student.dto';
+
+import { hashPassword } from '../../common/utils/password.util';
+import { UpdateStudentProfileDto } from './dto/update-student-profile.dto';
 
 const safeAccountSelect = {
   id: true,
@@ -40,9 +43,9 @@ export class StudentService {
   ) {
     const universityId = this.getUniversityId(currentUser);
 
-    await this.assertAccountCanBecomeStudent(dto.accountId);
     await this.assertMajorInUniversity(dto.majorId, universityId);
 
+    const passwordHash = await hashPassword(dto.password);
     let cvUrl = normalizeOptionalText(dto.cvUrl);
     let cvPublicId: string | undefined;
 
@@ -58,9 +61,18 @@ export class StudentService {
     try {
       return await this.prisma.student.create({
         data: {
-          accountId: dto.accountId,
-          universityId,
-          majorId: dto.majorId,
+          account: {
+            create: {
+              username: dto.username.trim(),
+              email: dto.email.trim().toLowerCase(),
+              fullName: dto.fullName.trim(),
+              phone: normalizeOptionalText(dto.phone),
+              passwordHash,
+              globalRole: GlobalRole.USER,
+            },
+          },
+          university: { connect: { id: universityId } },
+          major: { connect: { id: dto.majorId } },
           studentCode: normalizeCode(dto.studentCode),
           semester: dto.semester,
           className: normalizeOptionalText(dto.className),
@@ -74,10 +86,10 @@ export class StudentService {
       });
     } catch (error) {
       if (cvPublicId) {
-        await this.cloudinaryService.destroySafely(cvPublicId);
+        await this.cloudinaryService.destroySafely(cvPublicId, 'raw');
       }
       handlePrismaError(error, {
-        duplicate: 'Student code already exists',
+        duplicate: 'Student code, username or email already exists',
       });
     }
   }
@@ -126,7 +138,49 @@ export class StudentService {
     dto: UpdateStudentDto,
     file?: { buffer: Buffer },
   ) {
-    const universityId = this.getUniversityId(currentUser);
+    return this.updateInUniversity(
+      this.getUniversityId(currentUser),
+      id,
+      dto,
+      file,
+    );
+  }
+
+  /** Sinh viên tự xem hồ sơ, không nhận ID tùy ý từ request. */
+  findMe(user: CurrentUserData) {
+    if (!user.student)
+      throw new ForbiddenException('Student profile is required');
+    return this.findOneInUniversity(user.student.id, user.student.universityId);
+  }
+
+  /** DTO riêng ngăn sinh viên tự đổi mã, ngành, role hoặc status. */
+  async updateMe(
+    user: CurrentUserData,
+    dto: UpdateStudentProfileDto,
+    file?: { buffer: Buffer },
+  ) {
+    if (!user.student)
+      throw new ForbiddenException('Student profile is required');
+    const accountData: Prisma.AccountUpdateInput = {
+      ...(dto.fullName !== undefined && { fullName: dto.fullName.trim() }),
+      ...(dto.phone !== undefined && { phone: dto.phone.trim() }),
+    };
+    return this.updateInUniversity(
+      user.student.universityId,
+      user.student.id,
+      { cvUrl: dto.cvUrl },
+      file,
+      accountData,
+    );
+  }
+
+  private async updateInUniversity(
+    universityId: string,
+    id: string,
+    dto: UpdateStudentDto,
+    file?: { buffer: Buffer },
+    accountData?: Prisma.AccountUpdateInput,
+  ) {
     const currentStudent = await this.findOneInUniversity(id, universityId);
     const { cvUrl: requestedCvUrl } = dto;
     let uploadedCvPublicId: string | undefined;
@@ -136,6 +190,7 @@ export class StudentService {
     }
 
     const data: Prisma.StudentUpdateInput = {
+      ...(accountData && { account: { update: accountData } }),
       ...(dto.majorId !== undefined && {
         major: { connect: { id: dto.majorId } },
       }),
@@ -161,14 +216,17 @@ export class StudentService {
       data.cvUrl = uploadedCv.secure_url;
       data.cvPublicId = uploadedCv.public_id;
       uploadedCvPublicId = uploadedCv.public_id;
-    } else if (requestedCvUrl !== undefined) {
+    } else if (
+      requestedCvUrl !== undefined &&
+      normalizeOptionalText(requestedCvUrl) !== currentStudent.cvUrl
+    ) {
       data.cvUrl = normalizeOptionalText(requestedCvUrl) || null;
       data.cvPublicId = null;
     }
 
     try {
       const updatedStudent = await this.prisma.student.update({
-        where: { id },
+        where: { id, universityId, account: { globalRole: GlobalRole.USER } },
         data,
         include: {
           account: { select: safeAccountSelect },
@@ -177,15 +235,19 @@ export class StudentService {
         },
       });
 
-      const cvWasReplaced = file || requestedCvUrl !== undefined;
+      const cvWasReplaced =
+        data.cvUrl !== undefined && data.cvUrl !== currentStudent.cvUrl;
       if (cvWasReplaced && currentStudent.cvPublicId) {
-        await this.cloudinaryService.destroySafely(currentStudent.cvPublicId);
+        await this.cloudinaryService.destroySafely(
+          currentStudent.cvPublicId,
+          'raw',
+        );
       }
 
       return updatedStudent;
     } catch (error) {
       if (uploadedCvPublicId) {
-        await this.cloudinaryService.destroySafely(uploadedCvPublicId);
+        await this.cloudinaryService.destroySafely(uploadedCvPublicId, 'raw');
       }
 
       handlePrismaError(error, {
@@ -200,12 +262,12 @@ export class StudentService {
     const student = await this.findOneInUniversity(id, universityId);
 
     try {
-      await this.prisma.account.delete({
-        where: { id: student.accountId },
+      await this.prisma.student.delete({
+        where: { id, universityId, account: { globalRole: GlobalRole.USER } },
       });
 
       if (student.cvPublicId) {
-        await this.cloudinaryService.destroySafely(student.cvPublicId);
+        await this.cloudinaryService.destroySafely(student.cvPublicId, 'raw');
       }
     } catch (error) {
       if (
@@ -213,7 +275,7 @@ export class StudentService {
         error.code === 'P2003'
       ) {
         throw new ConflictException(
-          'Student account cannot be deleted because it is still referenced',
+          'Student profile cannot be deleted because it is still referenced',
         );
       }
 
@@ -229,27 +291,6 @@ export class StudentService {
     }
 
     return currentUser.schoolUser.universityId;
-  }
-
-  private async assertAccountCanBecomeStudent(accountId: string) {
-    const account = await this.prisma.account.findUnique({
-      where: { id: accountId },
-      select: {
-        id: true,
-        schoolUser: { select: { id: true } },
-        student: { select: { id: true } },
-      },
-    });
-
-    if (!account) {
-      throw new NotFoundException('Account was not found');
-    }
-
-    if (account.schoolUser || account.student) {
-      throw new ConflictException(
-        'Account is already linked to a user profile',
-      );
-    }
   }
 
   private async assertMajorInUniversity(
@@ -268,7 +309,7 @@ export class StudentService {
 
   private async findOneInUniversity(id: string, universityId: string) {
     const student = await this.prisma.student.findFirst({
-      where: { id, universityId },
+      where: { id, universityId, account: { globalRole: GlobalRole.USER } },
       include: {
         account: { select: safeAccountSelect },
         university: true,

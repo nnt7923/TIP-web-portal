@@ -12,19 +12,10 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import {
-  ApiBearerAuth,
-  ApiBody,
-  ApiConsumes,
-  ApiOperation,
-  ApiTags,
-} from '@nestjs/swagger';
-import { SchoolUserRole } from '@prisma/client';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { CurrentUserData } from '../../common/decorators/current-user.decorator';
-import { SchoolRoles } from '../../common/decorators/school-roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth-guard';
-import { SchoolRolesGuard } from '../auth/guards/school-roles.guard';
 import { ApproveSchoolUserDto } from './dto/approve-schooluser.dto';
 import { CreateSchoolUserDto } from './dto/create-schooluser';
 import { QuerySchoolUserDto } from './dto/query-schooluser';
@@ -32,110 +23,78 @@ import { UpdateSchoolUserDto } from './dto/update-schooluser';
 import { SchoolUserService } from './schooluser.service';
 
 @ApiTags('SchoolUsers')
+@ApiBearerAuth('access-token')
+@UseGuards(JwtAuthGuard)
 @Controller('schoolusers')
 export class SchoolUserController {
-  constructor(private readonly schoolUserService: SchoolUserService) {}
+  constructor(private readonly service: SchoolUserService) {}
 
   @Post()
-  @ApiOperation({ summary: 'Create a school user' })
-  @ApiConsumes('application/json')
-  @ApiBody({
-    schema: {
-      type: 'object',
-      required: [
-        'universityId',
-        'fullName',
-        'username',
-        'email',
-        'password',
-        'phone',
-        'role',
-      ],
-      properties: {
-        universityId: {
-          type: 'string',
-          format: 'uuid',
-        },
-        fullName: { type: 'string' },
-        username: { type: 'string' },
-        email: { type: 'string', format: 'email' },
-        password: { type: 'string', format: 'password' },
-        phone: { type: 'string' },
-        role: {
-          type: 'string',
-          enum: ['STAFF', 'UNIVERSITY_SUPERVISOR'],
-        },
-      },
-    },
+  @ApiOperation({
+    summary: 'Admin: create a school user in the permitted university',
   })
-  create(@Body() createSchoolUserDto: CreateSchoolUserDto) {
-    return this.schoolUserService.create(createSchoolUserDto);
+  create(
+    @CurrentUser() user: CurrentUserData,
+    @Body() dto: CreateSchoolUserDto,
+  ) {
+    return this.service.create(user, dto);
   }
 
   @Get()
-  @ApiOperation({ summary: 'Get and filter school users' })
-  findAll(@Query() query: QuerySchoolUserDto) {
-    return this.schoolUserService.findAll(query);
+  @ApiOperation({
+    summary: 'Admin: list school users within the permitted scope',
+  })
+  findAll(
+    @CurrentUser() user: CurrentUserData,
+    @Query() query: QuerySchoolUserDto,
+  ) {
+    return this.service.findAll(user, query);
   }
 
   @Get('university/:universityId')
-  @ApiOperation({ summary: 'Get and filter school users by university' })
   findAllSchoolUsers(
-    @Param('universityId', new ParseUUIDPipe()) universityId: string,
+    @CurrentUser() user: CurrentUserData,
+    @Param('universityId', ParseUUIDPipe) universityId: string,
     @Query() query: QuerySchoolUserDto,
   ) {
-    return this.schoolUserService.findAllSchoolUsers(universityId, query);
+    return this.service.findAllSchoolUsers(user, universityId, query);
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Get a school user by id' })
-  findOne(@Param('id', new ParseUUIDPipe()) id: string) {
-    return this.schoolUserService.findOne(id);
+  findOne(
+    @CurrentUser() user: CurrentUserData,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.service.findOne(user, id);
   }
 
   @Patch(':id')
-  @ApiOperation({ summary: 'Update a school user' })
-  @ApiConsumes('application/json')
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        fullName: { type: 'string' },
-        username: { type: 'string' },
-        email: { type: 'string', format: 'email' },
-        password: { type: 'string', format: 'password' },
-        phone: { type: 'string' },
-        role: {
-          type: 'string',
-          enum: ['STAFF', 'UNIVERSITY_SUPERVISOR'],
-        },
-      },
-    },
-  })
   update(
-    @Param('id', new ParseUUIDPipe()) id: string,
-    @Body() updateSchoolUserDto: UpdateSchoolUserDto,
+    @CurrentUser() user: CurrentUserData,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateSchoolUserDto,
   ) {
-    return this.schoolUserService.update(id, updateSchoolUserDto);
+    return this.service.update(user, id, dto);
   }
 
   @Patch(':id/approval')
-  @UseGuards(JwtAuthGuard, SchoolRolesGuard)
-  @SchoolRoles(SchoolUserRole.UNIVERSITY_ADMIN)
-  @ApiBearerAuth('access-token')
-  @ApiOperation({ summary: 'Approve a school user in the same university' })
   approve(
-    @CurrentUser() currentUser: CurrentUserData,
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @CurrentUser() user: CurrentUserData,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: ApproveSchoolUserDto,
   ) {
-    return this.schoolUserService.approve(currentUser, id, dto);
+    return this.service.approve(user, id, dto);
   }
 
   @Delete(':id')
-  @ApiOperation({ summary: 'Delete a school user' })
   @HttpCode(HttpStatus.NO_CONTENT)
-  async remove(@Param('id', new ParseUUIDPipe()) id: string): Promise<void> {
-    await this.schoolUserService.remove(id);
+  @ApiOperation({
+    summary: 'Admin: remove a school profile, preserving the global Account',
+  })
+  async remove(
+    @CurrentUser() user: CurrentUserData,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<void> {
+    await this.service.remove(user, id);
   }
 }

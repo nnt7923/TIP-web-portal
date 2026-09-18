@@ -78,15 +78,15 @@ export class InternshipPeriodController {
         applyStartDate: {
           type: 'string',
           format: 'date-time',
-          example: '2026-09-01T00:00:00.000Z',
+          example: '2026-08-01T00:00:00.000Z',
         },
         applyEndDate: {
           type: 'string',
           format: 'date-time',
-          example: '2027-06-30T23:59:59.000Z',
+          example: '2026-08-31T23:59:59.000Z',
         },
-        requiredHours: { type: 'number' },
-        requiredWeeks: { type: 'number' },
+        requiredHours: { type: 'integer', minimum: 1 },
+        requiredWeeks: { type: 'integer', minimum: 1 },
         status: {
           type: 'string',
           enum: Object.values(InternshipPeriodStatus),
@@ -134,10 +134,6 @@ export class InternshipPeriodController {
     schema: {
       type: 'object',
       properties: {
-        academicYearId: {
-          type: 'string',
-          format: 'uuid',
-        },
         name: { type: 'string' },
         startDate: {
           type: 'string',
@@ -153,15 +149,15 @@ export class InternshipPeriodController {
         applyStartDate: {
           type: 'string',
           format: 'date-time',
-          example: '2026-09-01T00:00:00.000Z',
+          example: '2026-08-01T00:00:00.000Z',
         },
         applyEndDate: {
           type: 'string',
           format: 'date-time',
-          example: '2027-06-30T23:59:59.000Z',
+          example: '2026-08-31T23:59:59.000Z',
         },
-        requiredHours: { type: 'number' },
-        requiredWeeks: { type: 'number' },
+        requiredHours: { type: 'integer', minimum: 1 },
+        requiredWeeks: { type: 'integer', minimum: 1 },
         status: {
           type: 'string',
           enum: Object.values(InternshipPeriodStatus),

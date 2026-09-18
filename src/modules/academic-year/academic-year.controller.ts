@@ -32,6 +32,8 @@ import { SchoolRolesGuard } from '../auth/guards/school-roles.guard';
 import { SchoolUserRole } from '@prisma/client';
 
 @ApiTags('Academic Years')
+@UseGuards(JwtAuthGuard)
+@ApiBearerAuth('access-token')
 @Controller('academic-years')
 export class AcademicYearController {
   constructor(private readonly academicYearService: AcademicYearService) {}
@@ -77,14 +79,20 @@ export class AcademicYearController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'Get and filter academic year' })
-  findAll(@Query() query: QueryAcademicYearDto) {
-    return this.academicYearService.findAll(query);
+  findAll(
+    @CurrentUser() currentUser: CurrentUserData,
+    @Query() query: QueryAcademicYearDto,
+  ) {
+    return this.academicYearService.findAll(currentUser, query);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get an academic year by id' })
-  findOne(@Param('id', new ParseUUIDPipe()) id: string) {
-    return this.academicYearService.findOne(id);
+  findOne(
+    @CurrentUser() currentUser: CurrentUserData,
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ) {
+    return this.academicYearService.findOne(currentUser, id);
   }
 
   @Patch(':id')

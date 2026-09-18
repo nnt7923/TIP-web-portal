@@ -35,6 +35,7 @@ import { CreateStudentDto } from './dto/create-student.dto';
 import { QueryStudentDto } from './dto/query-student.dto';
 import { UpdateStudentDto } from './dto/update-student.dto';
 import { StudentService } from './student.service';
+import { UpdateStudentProfileDto } from './dto/update-student-profile.dto';
 
 type UploadedCvFile = {
   buffer: Buffer;
@@ -55,21 +56,30 @@ export class StudentController {
 
   @Post()
   @SchoolRoles(SchoolUserRole.UNIVERSITY_ADMIN)
-  @UseInterceptors(FileInterceptor('cv'))
+  @UseInterceptors(
+    FileInterceptor('cv', { limits: { fileSize: 5 * 1024 * 1024, files: 1 } }),
+  )
   @ApiOperation({ summary: 'Create a student' })
-  @ApiConsumes('multipart/form-data')
+  @ApiConsumes('multipart/form-data', 'application/json')
   @ApiBody({
     schema: {
       type: 'object',
       required: [
-        'accountId',
+        'fullName',
+        'username',
+        'email',
+        'password',
         'majorId',
         'studentCode',
         'semester',
         'className',
       ],
       properties: {
-        accountId: { type: 'string', format: 'uuid' },
+        fullName: { type: 'string' },
+        username: { type: 'string' },
+        email: { type: 'string', format: 'email' },
+        password: { type: 'string', format: 'password', minLength: 8 },
+        phone: { type: 'string' },
         majorId: { type: 'string', format: 'uuid' },
         studentCode: { type: 'string', example: 'STU001' },
         semester: { type: 'integer', minimum: 1, maximum: 8 },
@@ -113,6 +123,47 @@ export class StudentController {
     return this.studentService.findAll(currentUser, query);
   }
 
+  @Get('me')
+  @ApiOperation({ summary: 'Student: get my own profile' })
+  findMe(@CurrentUser() user: CurrentUserData) {
+    return this.studentService.findMe(user);
+  }
+
+  @Patch('me')
+  @UseInterceptors(
+    FileInterceptor('cv', { limits: { fileSize: 5 * 1024 * 1024, files: 1 } }),
+  )
+  @ApiOperation({ summary: 'Student: update my name, phone and CV' })
+  @ApiConsumes('multipart/form-data', 'application/json')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        fullName: { type: 'string' },
+        phone: { type: 'string' },
+        cvUrl: { type: 'string' },
+        cv: {
+          type: 'string',
+          format: 'binary',
+          description: 'PDF, maximum 5 MB',
+        },
+      },
+    },
+  })
+  updateMe(
+    @CurrentUser() user: CurrentUserData,
+    @Body() dto: UpdateStudentProfileDto,
+    @UploadedFile(
+      new ParseFilePipeBuilder()
+        .addFileTypeValidator({ fileType: 'application/pdf' })
+        .addMaxSizeValidator({ maxSize: 5 * 1024 * 1024 })
+        .build({ fileIsRequired: false }),
+    )
+    file?: UploadedCvFile,
+  ) {
+    return this.studentService.updateMe(user, dto, file);
+  }
+
   @Get(':id')
   @SchoolRoles(...schoolReaderRoles)
   @ApiOperation({ summary: 'Get a student by id' })
@@ -125,9 +176,11 @@ export class StudentController {
 
   @Patch(':id')
   @SchoolRoles(SchoolUserRole.UNIVERSITY_ADMIN)
-  @UseInterceptors(FileInterceptor('cv'))
+  @UseInterceptors(
+    FileInterceptor('cv', { limits: { fileSize: 5 * 1024 * 1024, files: 1 } }),
+  )
   @ApiOperation({ summary: 'Update a student' })
-  @ApiConsumes('multipart/form-data')
+  @ApiConsumes('multipart/form-data', 'application/json')
   @ApiBody({
     schema: {
       type: 'object',
@@ -138,7 +191,6 @@ export class StudentController {
         className: { type: 'string' },
         cvUrl: {
           type: 'string',
-          nullable: true,
           description:
             'External CV URL. Send an empty value to remove the current CV.',
         },
@@ -171,7 +223,9 @@ export class StudentController {
 
   @Delete(':id')
   @SchoolRoles(SchoolUserRole.UNIVERSITY_ADMIN)
-  @ApiOperation({ summary: 'Delete a student account' })
+  @ApiOperation({
+    summary: 'Delete a student profile, preserving the global Account',
+  })
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(
     @CurrentUser() currentUser: CurrentUserData,

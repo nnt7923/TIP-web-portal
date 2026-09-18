@@ -40,14 +40,22 @@ export class CloudinaryService {
     });
   }
 
-  destroy(publicId: string): Promise<unknown> {
-    return this.cloudinary.uploader.destroy(publicId);
+  destroy(
+    publicId: string,
+    resourceType: 'image' | 'raw' | 'video' = 'image',
+  ): Promise<unknown> {
+    return this.cloudinary.uploader.destroy(publicId, {
+      resource_type: resourceType,
+    });
   }
 
   /** Xóa một tài nguyên Cloudinary và chỉ ghi cảnh báo nếu thao tác thất bại. */
-  async destroySafely(publicId: string): Promise<void> {
+  async destroySafely(
+    publicId: string,
+    resourceType: 'image' | 'raw' | 'video' = 'image',
+  ): Promise<void> {
     try {
-      await this.destroy(publicId);
+      await this.destroy(publicId, resourceType);
     } catch {
       this.logger.warn(`Could not delete Cloudinary asset "${publicId}"`);
     }

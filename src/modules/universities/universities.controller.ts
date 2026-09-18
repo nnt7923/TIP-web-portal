@@ -1,3 +1,4 @@
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import {
   Body,
   Controller,
@@ -80,18 +81,22 @@ export class UniversitiesController {
       properties: {
         name: { type: 'string' },
         code: { type: 'string' },
-        website: { type: 'string', format: 'uri', nullable: true },
-        address: { type: 'string', nullable: true },
-        logoUrl: { type: 'string', nullable: true },
+        website: { type: 'string', format: 'uri' },
+        address: { type: 'string' },
+        logoUrl: {
+          type: 'string',
+          description: 'Send an empty string to remove the logo.',
+        },
         status: { type: 'string', enum: Object.values(UniversityStatus) },
       },
     },
   })
   update(
+    @CurrentUser('id') actorId: string,
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() updateUniversityDto: UpdateUniversityDto,
   ) {
-    return this.universitiesService.update(id, updateUniversityDto);
+    return this.universitiesService.update(actorId, id, updateUniversityDto);
   }
 
   @Delete(':id')

@@ -1,6 +1,6 @@
+import { getUniversityId } from '../../common/utils/university-scope.util';
 import {
   BadRequestException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -28,6 +28,7 @@ export class InternshipPeriodService {
     const applyEndDate = new Date(dto.applyEndDate);
 
     this.assertValidDateRange(startDate, endDate, 'Internship period');
+    this.assertPeriodSchedule(startDate, endDate, applyEndDate, academicYear);
     this.assertValidDateRange(
       applyStartDate,
       applyEndDate,
@@ -75,11 +76,7 @@ export class InternshipPeriodService {
   }
 
   private getUniversityId(currentUser: CurrentUserData): string {
-    if (!currentUser.schoolUser) {
-      throw new ForbiddenException('School user profile was not found');
-    }
-
-    return currentUser.schoolUser.universityId;
+    return getUniversityId(currentUser);
   }
 
   async findOne(currentUser: CurrentUserData, id: string) {
@@ -107,7 +104,10 @@ export class InternshipPeriodService {
       id,
       universityId,
     );
-    // const academicYear = await this.getAcademicYearInUniversity(currentPeriod.academicYearId, universityId);
+    const academicYear = await this.getAcademicYearInUniversity(
+      currentPeriod.academicYearId,
+      universityId,
+    );
 
     const startDate = dto.startDate
       ? new Date(dto.startDate)
@@ -121,6 +121,7 @@ export class InternshipPeriodService {
       : currentPeriod.applyEndDate;
 
     this.assertValidDateRange(startDate, endDate, 'Internship period');
+    this.assertPeriodSchedule(startDate, endDate, applyEndDate, academicYear);
 
     this.assertValidDateRange(
       applyStartDate,
@@ -146,7 +147,7 @@ export class InternshipPeriodService {
 
     try {
       return await this.prisma.internshipPeriod.update({
-        where: { id },
+        where: { id, universityId },
         data,
       });
     } catch (error) {
@@ -163,7 +164,9 @@ export class InternshipPeriodService {
     await this.findInternshipPeriodInUniversity(id, universityId);
 
     try {
-      await this.prisma.internshipPeriod.delete({ where: { id } });
+      await this.prisma.internshipPeriod.delete({
+        where: { id, universityId },
+      });
     } catch (error) {
       handlePrismaError(error, {
         notFound: `Internship Period with id "${id}" was not found`,
@@ -203,6 +206,8 @@ export class InternshipPeriodService {
       },
       select: {
         id: true,
+        startDate: true,
+        endDate: true,
       },
     });
 
@@ -213,6 +218,25 @@ export class InternshipPeriodService {
     }
 
     return academicYear;
+  }
+
+  /** Kỳ thực tập nằm trong năm học, đăng ký kết thúc chậm nhất lúc bắt đầu kỳ. */
+  private assertPeriodSchedule(
+    start: Date,
+    end: Date,
+    applyEnd: Date | null,
+    year: { startDate: Date; endDate: Date },
+  ): void {
+    if (start < year.startDate || end > year.endDate) {
+      throw new BadRequestException(
+        'Internship dates must be within the academic year',
+      );
+    }
+    if (applyEnd && applyEnd > start) {
+      throw new BadRequestException(
+        'Application must close no later than the internship start',
+      );
+    }
   }
 
   /**

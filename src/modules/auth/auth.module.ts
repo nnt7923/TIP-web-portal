@@ -9,6 +9,7 @@ import { GlobalRolesGuard } from './guards/global-roles.guard';
 import { JwtAuthGuard } from './guards/jwt-auth-guard';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { SchoolRolesGuard } from './guards/school-roles.guard';
+import { AuthRateLimitGuard } from './guards/auth-rate-limit.guard';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { SchoolRolesGuard } from './guards/school-roles.guard';
   ],
   controllers: [AuthController],
   providers: [
+    AuthRateLimitGuard,
     AuthService,
     JwtStrategy,
     JwtAuthGuard,

@@ -38,6 +38,17 @@ import { OtpPurpose } from './enums/otp-purpose.enum';
 import { TokenType } from './enums/token-type.enum';
 import type { JwtPayload } from './guards/jwt-auth-guard';
 
+import {
+  authProfileInclude,
+  assertAccountCanAuthenticate,
+} from './auth-account.policy';
+import {
+  SAVE_SESSION,
+  REMOVE_ALL_SESSIONS,
+  CONSUME_OTP,
+  RATE_LIMIT,
+} from './redis-scripts';
+
 const scryptAsync = promisify(scrypt);
 const OTP_TTL_SECONDS = 5 * 60;
 const OTP_RESEND_COOLDOWN_SECONDS = 60;
@@ -52,6 +63,7 @@ type TokenAccount = {
   id: string;
   username: string;
   globalRole: GlobalRole;
+  student: { universityId: string } | null;
   schoolUser: {
     universityId: string;
     role: SchoolUserRole;
@@ -69,9 +81,23 @@ export class AuthService {
   ) {}
 
   async login(loginDto: LoginDto): Promise<AuthTokens> {
+    const loginKey = createHash('sha256')
+      .update(loginDto.username.trim().toLowerCase())
+      .digest('hex');
+    const attempts = await this.redisService.connection.eval(
+      RATE_LIMIT,
+      1,
+      `auth:rate:login:${loginKey}`,
+      300,
+    );
+    if (Number(attempts) > 10)
+      throw new HttpException(
+        'Too many login attempts. Try again in five minutes.',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
     const account = await this.prisma.account.findUnique({
       where: { username: loginDto.username.trim() },
-      include: { schoolUser: true },
+      include: authProfileInclude,
     });
 
     if (!account) {
@@ -204,7 +230,7 @@ export class AuthService {
       });
 
       return {
-        message: 'Email verified. Your account is waiting for admin approval.',
+        message: 'Email verified. You can log in once your profile is active.',
       };
     }
 
@@ -234,7 +260,6 @@ export class AuthService {
       return { message: 'Email is already verified.' };
     }
 
-    await this.assertOtpCooldown(account.id, purpose);
     await this.sendOtp(account.id, account.email, purpose);
 
     return { message: 'If the email exists, a new OTP has been sent.' };
@@ -259,7 +284,7 @@ export class AuthService {
 
     const account = await this.prisma.account.findUnique({
       where: { id: payload.sub },
-      include: { schoolUser: true },
+      include: authProfileInclude,
     });
 
     if (!account) {
@@ -274,7 +299,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid or inactive account');
     }
 
-    return this.issueTokens(account, payload.sid);
+    return this.issueTokens(account, payload.sid, payload.jti);
   }
 
   async logout(accountId: string, accessToken: string) {
@@ -431,28 +456,11 @@ export class AuthService {
     );
   }
 
-  /** Rejects globally disabled accounts and inactive organization profiles. */
-  private assertAccountCanLogin(account: {
-    status: AccountStatus;
-    globalRole: GlobalRole;
-    emailVerifiedAt: Date | null;
-    schoolUser: { status: SchoolUserStatus } | null;
-  }): void {
-    if (account.status !== AccountStatus.ACTIVE) {
-      throw new ForbiddenException('Account is not active');
-    }
-
-    if (!account.emailVerifiedAt) {
-      throw new ForbiddenException('Email has not been verified');
-    }
-
-    if (
-      account.globalRole !== GlobalRole.SYSTEM_ADMIN &&
-      (!account.schoolUser ||
-        account.schoolUser.status !== SchoolUserStatus.ACTIVE)
-    ) {
-      throw new ForbiddenException('School account is waiting for approval');
-    }
+  /** Kiểm tra chung cho SchoolUser và Student. */
+  private assertAccountCanLogin(
+    account: Parameters<typeof assertAccountCanAuthenticate>[0],
+  ): void {
+    assertAccountCanAuthenticate(account);
   }
 
   /** Sends a six-digit OTP and stores it in Redis for five minutes. */
@@ -462,37 +470,45 @@ export class AuthService {
     purpose: OtpPurpose,
   ): Promise<void> {
     const otp = randomInt(100000, 1000000).toString();
+    const reservationId = randomUUID();
     const redisKey = this.otpKey(accountId, purpose);
     const cooldownKey = this.otpCooldownKey(accountId, purpose);
 
+    const reservation = await this.redisService.connection.set(
+      cooldownKey,
+      reservationId,
+      'EX',
+      OTP_RESEND_COOLDOWN_SECONDS,
+      'NX',
+    );
+    if (!reservation)
+      throw new HttpException(
+        'Please wait before requesting another OTP.',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
     await this.redisService.connection
       .multi()
-      .set(redisKey, otp, 'EX', OTP_TTL_SECONDS)
-      .set(cooldownKey, '1', 'EX', OTP_RESEND_COOLDOWN_SECONDS)
+      .set(
+        redisKey,
+        createHash('sha256').update(otp).digest('hex'),
+        'EX',
+        OTP_TTL_SECONDS,
+      )
+      .del(`${redisKey}:attempts`)
       .exec();
 
     try {
       await this.emailService.sendOtp(email, otp);
     } catch (error) {
-      await this.redisService.connection.del(redisKey, cooldownKey);
-      throw error;
-    }
-  }
-
-  /** Prevents repeated OTP requests during the resend cooldown period. */
-  private async assertOtpCooldown(
-    accountId: string,
-    purpose: OtpPurpose,
-  ): Promise<void> {
-    const remainingSeconds = await this.redisService.connection.ttl(
-      this.otpCooldownKey(accountId, purpose),
-    );
-
-    if (remainingSeconds > 0) {
-      throw new HttpException(
-        `Please wait ${remainingSeconds} seconds before requesting another OTP.`,
-        HttpStatus.TOO_MANY_REQUESTS,
+      await this.redisService.connection.eval(
+        "if redis.call('GET', KEYS[2]) == ARGV[1] then redis.call('DEL', KEYS[1], KEYS[2], KEYS[3]) end; return 1",
+        3,
+        redisKey,
+        cooldownKey,
+        `${redisKey}:attempts`,
+        reservationId,
       );
+      throw error;
     }
   }
 
@@ -505,13 +521,15 @@ export class AuthService {
         email: true,
         emailVerifiedAt: true,
         schoolUser: { select: { universityId: true } },
+        student: { select: { universityId: true } },
       },
     });
 
     if (
       account &&
       universityId &&
-      account.schoolUser?.universityId !== universityId
+      (account.schoolUser?.universityId ?? account.student?.universityId) !==
+        universityId
     ) {
       return null;
     }
@@ -526,10 +544,12 @@ export class AuthService {
     otp: string,
   ): Promise<boolean> {
     const result: unknown = await this.redisService.connection.eval(
-      "local value = redis.call('GET', KEYS[1]); if not value or value ~= ARGV[1] then return 0 end; redis.call('DEL', KEYS[1]); return 1",
-      1,
+      CONSUME_OTP,
+      2,
       this.otpKey(accountId, purpose),
-      otp,
+      `${this.otpKey(accountId, purpose)}:attempts`,
+      createHash('sha256').update(otp).digest('hex'),
+      5,
     );
     return result === 1;
   }
@@ -538,6 +558,7 @@ export class AuthService {
   private async issueTokens(
     account: TokenAccount,
     existingSessionId?: string,
+    expectedRefreshJti?: string,
   ): Promise<AuthTokens> {
     const sessionId = existingSessionId ?? randomUUID();
     const accessJti = randomUUID();
@@ -547,7 +568,8 @@ export class AuthService {
       username: account.username,
       globalRole: account.globalRole,
       schoolRole: account.schoolUser?.role,
-      universityId: account.schoolUser?.universityId,
+      universityId:
+        account.schoolUser?.universityId ?? account.student?.universityId,
       sid: sessionId,
     };
 
@@ -580,13 +602,21 @@ export class AuthService {
     const sessionKey = this.sessionKey(sessionId);
     const accountSessionsKey = this.accountSessionsKey(account.id);
 
-    await this.redisService.connection
-      .multi()
-      .hset(sessionKey, 'accountId', account.id, 'refreshJti', refreshJti)
-      .expire(sessionKey, sessionTtl)
-      .sadd(accountSessionsKey, sessionId)
-      .expire(accountSessionsKey, sessionTtl)
-      .exec();
+    const saved = await this.redisService.connection.eval(
+      SAVE_SESSION,
+      2,
+      sessionKey,
+      accountSessionsKey,
+      account.id,
+      refreshJti,
+      sessionTtl,
+      sessionId,
+      expectedRefreshJti ?? '',
+    );
+    if (saved !== 1)
+      throw new UnauthorizedException(
+        'Refresh token has been revoked or already used',
+      );
 
     return { accessToken, refreshToken };
   }
@@ -648,16 +678,12 @@ export class AuthService {
   /** Deletes every active login session owned by one Account. */
   private async removeAllSessions(accountId: string): Promise<void> {
     const accountSessionsKey = this.accountSessionsKey(accountId);
-    const sessionIds =
-      await this.redisService.connection.smembers(accountSessionsKey);
-    const transaction = this.redisService.connection.multi();
-
-    for (const sessionId of sessionIds) {
-      transaction.del(this.sessionKey(sessionId));
-    }
-
-    transaction.del(accountSessionsKey);
-    await transaction.exec();
+    await this.redisService.connection.eval(
+      REMOVE_ALL_SESSIONS,
+      1,
+      accountSessionsKey,
+      'auth:session:',
+    );
   }
 
   /** Reads the Account id stored for a password reset token. */

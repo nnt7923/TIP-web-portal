@@ -21,8 +21,10 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { RevokeTokenDto } from './dto/revoke-token.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { JwtAuthGuard } from './guards/jwt-auth-guard';
+import { AuthRateLimitGuard } from './guards/auth-rate-limit.guard';
 
 @ApiTags('Auth')
+@UseGuards(AuthRateLimitGuard)
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}

@@ -1,7 +1,10 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
-import { AccountStatus, GlobalRole, SchoolUserStatus } from '@prisma/client';
+import {
+  currentAccountSelect,
+  assertAccountCanAuthenticate,
+} from '../auth-account.policy';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { PrismaService } from '../../../database/prisma.service';
 import { RedisService } from '../../../redis/redis.service';
@@ -44,39 +47,15 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
     const account = await this.prisma.account.findUnique({
       where: { id: payload.sub },
-      select: {
-        id: true,
-        username: true,
-        email: true,
-        fullName: true,
-        globalRole: true,
-        status: true,
-        emailVerifiedAt: true,
-        schoolUser: {
-          select: {
-            id: true,
-            universityId: true,
-            role: true,
-            status: true,
-          },
-        },
-      },
+      select: currentAccountSelect,
     });
-
-    if (
-      !account ||
-      account.status !== AccountStatus.ACTIVE ||
-      !account.emailVerifiedAt
-    ) {
-      throw new UnauthorizedException('Invalid or inactive account');
-    }
-
-    if (
-      account.globalRole !== GlobalRole.SYSTEM_ADMIN &&
-      (!account.schoolUser ||
-        account.schoolUser.status !== SchoolUserStatus.ACTIVE)
-    ) {
-      throw new UnauthorizedException('Invalid or inactive school account');
+    if (!account) throw new UnauthorizedException('Invalid account');
+    try {
+      assertAccountCanAuthenticate(account);
+    } catch {
+      throw new UnauthorizedException(
+        'Invalid or inactive account or university',
+      );
     }
 
     return account;

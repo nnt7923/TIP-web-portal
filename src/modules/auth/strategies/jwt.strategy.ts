@@ -54,7 +54,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       assertAccountCanAuthenticate(account);
     } catch {
       throw new UnauthorizedException(
-        'Invalid or inactive account or university',
+        'Invalid or inactive account or organization',
       );
     }
 

@@ -16,6 +16,7 @@ import { ChangePasswordDto } from './dto/change-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { RegisterDto } from './dto/register.dto';
+import { RegisterCompanyDto } from './dto/register-company.dto';
 import { ResendOtpDto } from './dto/resend.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { RevokeTokenDto } from './dto/revoke-token.dto';
@@ -40,6 +41,12 @@ export class AuthController {
   @ApiOperation({ summary: 'Register a school user' })
   register(@Body() registerDto: RegisterDto) {
     return this.authService.register(registerDto);
+  }
+
+  @Post('register-company')
+  @ApiOperation({ summary: 'Register a pending company and its first admin' })
+  registerCompany(@Body() dto: RegisterCompanyDto) {
+    return this.authService.registerCompany(dto);
   }
 
   @Post('resend-otp')

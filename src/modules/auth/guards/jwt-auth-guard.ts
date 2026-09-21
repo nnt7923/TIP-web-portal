@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { GlobalRole, SchoolUserRole } from '@prisma/client';
+import { CompanyUserRole, GlobalRole, SchoolUserRole } from '@prisma/client';
 import { TokenType } from '../enums/token-type.enum';
 
 @Injectable()
@@ -10,7 +10,9 @@ export type JwtPayload = {
   username: string;
   globalRole: GlobalRole;
   schoolRole?: SchoolUserRole;
+  companyRole?: CompanyUserRole;
   universityId?: string;
+  companyId?: string;
   sid: string;
   jti: string;
   tokenType: TokenType;

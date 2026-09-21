@@ -12,7 +12,11 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService, JwtSignOptions } from '@nestjs/jwt';
 import {
   AccountStatus,
+  CompanyStatus,
+  CompanyUserRole,
+  CompanyUserStatus,
   GlobalRole,
+  Prisma,
   SchoolUserRole,
   SchoolUserStatus,
 } from '@prisma/client';
@@ -31,12 +35,14 @@ import { RedisService } from '../../redis/redis.service';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { RegisterCompanyDto } from './dto/register-company.dto';
 import { ResendOtpDto } from './dto/resend.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { OtpPurpose } from './enums/otp-purpose.enum';
 import { TokenType } from './enums/token-type.enum';
 import type { JwtPayload } from './guards/jwt-auth-guard';
+import { normalizeOptionalText } from '../../common/utils/text.util';
 
 import {
   authProfileInclude,
@@ -68,7 +74,36 @@ type TokenAccount = {
     universityId: string;
     role: SchoolUserRole;
   } | null;
+  companyUser: {
+    companyId: string;
+    role: CompanyUserRole;
+  } | null;
 };
+
+const companyRegistrationAccountSelect = {
+  id: true,
+  fullName: true,
+  email: true,
+  username: true,
+  phone: true,
+  globalRole: true,
+  status: true,
+  emailVerifiedAt: true,
+  createdAt: true,
+  companyUser: {
+    select: {
+      id: true,
+      companyId: true,
+      role: true,
+      status: true,
+      company: true,
+    },
+  },
+} satisfies Prisma.AccountSelect;
+
+type CompanyRegistrationAccount = Prisma.AccountGetPayload<{
+  select: typeof companyRegistrationAccountSelect;
+}>;
 
 @Injectable()
 export class AuthService {
@@ -197,6 +232,81 @@ export class AuthService {
     return {
       message:
         'Registration successful. Verify your email, then wait for admin approval.',
+      account,
+    };
+  }
+
+  async registerCompany(dto: RegisterCompanyDto) {
+    const username = dto.username.trim();
+    const email = dto.email.trim().toLowerCase();
+    const existingAccount = await this.prisma.account.findFirst({
+      where: { OR: [{ username }, { email }] },
+      select: { id: true },
+    });
+
+    if (existingAccount) {
+      throw new ConflictException('Username or email is already registered');
+    }
+
+    let account: CompanyRegistrationAccount;
+    try {
+      account = await this.prisma.account.create({
+        data: {
+          fullName: dto.fullName.trim(),
+          email,
+          username,
+          passwordHash: await this.hashPassword(dto.password),
+          phone: normalizeOptionalText(dto.phone),
+          globalRole: GlobalRole.USER,
+          status: AccountStatus.ACTIVE,
+          companyUser: {
+            create: {
+              role: CompanyUserRole.COMPANY_ADMIN,
+              status: CompanyUserStatus.PENDING,
+              company: {
+                create: {
+                  name: dto.companyName.trim(),
+                  website: normalizeOptionalText(dto.website),
+                  address: normalizeOptionalText(dto.address),
+                  industry: normalizeOptionalText(dto.industry),
+                  logoUrl: normalizeOptionalText(dto.logoUrl),
+                  status: CompanyStatus.PENDING,
+                },
+              },
+            },
+          },
+        },
+        select: companyRegistrationAccountSelect,
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException('Username or email is already registered');
+      }
+      throw error;
+    }
+
+    try {
+      await this.sendOtp(
+        account.id,
+        account.email,
+        OtpPurpose.EmailVerification,
+      );
+    } catch (error) {
+      await this.prisma.$transaction([
+        this.prisma.account.delete({ where: { id: account.id } }),
+        this.prisma.company.delete({
+          where: { id: account.companyUser!.companyId },
+        }),
+      ]);
+      throw error;
+    }
+
+    return {
+      message:
+        'Company registration submitted. Verify the email and wait for System Admin approval.',
       account,
     };
   }
@@ -522,6 +632,7 @@ export class AuthService {
         emailVerifiedAt: true,
         schoolUser: { select: { universityId: true } },
         student: { select: { universityId: true } },
+        companyUser: { select: { companyId: true } },
       },
     });
 
@@ -568,8 +679,10 @@ export class AuthService {
       username: account.username,
       globalRole: account.globalRole,
       schoolRole: account.schoolUser?.role,
+      companyRole: account.companyUser?.role,
       universityId:
         account.schoolUser?.universityId ?? account.student?.universityId,
+      companyId: account.companyUser?.companyId,
       sid: sessionId,
     };
 

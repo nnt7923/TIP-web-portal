@@ -40,6 +40,17 @@ const accountSelect = {
       },
     },
   },
+  companyUser: {
+    select: {
+      id: true,
+      companyId: true,
+      role: true,
+      status: true,
+      company: {
+        select: { id: true, name: true, status: true },
+      },
+    },
+  },
 } satisfies Prisma.AccountSelect;
 
 @Injectable()

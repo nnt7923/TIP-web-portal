@@ -5,6 +5,8 @@ import {
 } from '@nestjs/common';
 import {
   AccountStatus,
+  CompanyUserRole,
+  CompanyUserStatus,
   GlobalRole,
   SchoolUserRole,
   SchoolUserStatus,
@@ -30,6 +32,12 @@ export type CurrentUserData = {
     id: string;
     universityId: string;
     status: StudentStatus;
+  } | null;
+  companyUser: {
+    id: string;
+    companyId: string;
+    role: CompanyUserRole;
+    status: CompanyUserStatus;
   } | null;
 };
 

@@ -10,6 +10,7 @@ import { JwtAuthGuard } from './guards/jwt-auth-guard';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { SchoolRolesGuard } from './guards/school-roles.guard';
 import { AuthRateLimitGuard } from './guards/auth-rate-limit.guard';
+import { CompanyRolesGuard } from './guards/company-roles.guard';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { AuthRateLimitGuard } from './guards/auth-rate-limit.guard';
     JwtAuthGuard,
     GlobalRolesGuard,
     SchoolRolesGuard,
+    CompanyRolesGuard,
   ],
   exports: [
     JwtModule,
@@ -43,6 +45,7 @@ import { AuthRateLimitGuard } from './guards/auth-rate-limit.guard';
     JwtAuthGuard,
     GlobalRolesGuard,
     SchoolRolesGuard,
+    CompanyRolesGuard,
   ],
 })
 export class AuthModule {}

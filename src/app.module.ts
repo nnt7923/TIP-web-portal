@@ -14,6 +14,8 @@ import { MajorModule } from './modules/major/major.module';
 import { AcademicYearModule } from './modules/academic-year/academic-year.module';
 import { InternshipPeriodModule } from './modules/internship-period/internship-period.module';
 import { StudentModule } from './modules/student/student.module';
+import { CompanyModule } from './modules/company/company.module';
+import { CompanyUserModule } from './modules/companyuser/company-user.module';
 
 @Module({
   imports: [
@@ -35,6 +37,8 @@ import { StudentModule } from './modules/student/student.module';
     AcademicYearModule,
     InternshipPeriodModule,
     StudentModule,
+    CompanyModule,
+    CompanyUserModule,
   ],
 })
 export class AppModule {}

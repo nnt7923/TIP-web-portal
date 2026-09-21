@@ -1,6 +1,8 @@
 import { ForbiddenException } from '@nestjs/common';
 import {
   AccountStatus,
+  CompanyStatus,
+  CompanyUserStatus,
   GlobalRole,
   Prisma,
   SchoolUserStatus,
@@ -11,6 +13,7 @@ import {
 export const authProfileInclude = {
   schoolUser: { include: { university: { select: { status: true } } } },
   student: { include: { university: { select: { status: true } } } },
+  companyUser: { include: { company: { select: { status: true } } } },
 } satisfies Prisma.AccountInclude;
 
 export const currentAccountSelect = {
@@ -38,7 +41,7 @@ export function assertAccountCanAuthenticate(account: AuthAccount): void {
     throw new ForbiddenException('Email has not been verified');
   }
   if (account.globalRole === GlobalRole.SYSTEM_ADMIN) return;
-  if (!account.schoolUser && !account.student) {
+  if (!account.schoolUser && !account.student && !account.companyUser) {
     throw new ForbiddenException('Account has no organization profile');
   }
   if (
@@ -51,6 +54,22 @@ export function assertAccountCanAuthenticate(account: AuthAccount): void {
   }
   if (account.student && account.student.status !== StudentStatus.ACTIVE) {
     throw new ForbiddenException('Student is not active');
+  }
+  if (
+    account.companyUser &&
+    account.companyUser.status !== CompanyUserStatus.ACTIVE
+  ) {
+    throw new ForbiddenException(
+      'Company account is not active or is waiting for approval',
+    );
+  }
+  if (
+    account.companyUser &&
+    account.companyUser.company.status !== CompanyStatus.VERIFIED
+  ) {
+    throw new ForbiddenException(
+      'Company has not been verified or is inactive',
+    );
   }
   for (const profile of [account.schoolUser, account.student]) {
     if (

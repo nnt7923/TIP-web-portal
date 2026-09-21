@@ -66,6 +66,7 @@ model University {
   academicYears     AcademicYear[]
   internshipPeriods InternshipPeriod[]
   students          Student[]
+  applications      Application[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -206,7 +207,8 @@ model Student {
 
   status StudentStatus @default(ACTIVE)
 
-  internships StudentInternship[]
+  internships  StudentInternship[]
+  applications Application[]
 
   account    Account    @relation(fields: [accountId], references: [id], onDelete: Cascade)
   university University @relation(fields: [universityId], references: [id], onDelete: Restrict)
@@ -215,6 +217,8 @@ model Student {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Allows Application to reference a student together with their university.
+  @@unique([id, universityId])
   @@unique([universityId, studentCode])
   @@index([universityId])
   @@index([majorId])
@@ -316,6 +320,8 @@ model Opportunity {
   applicationDeadline DateTime?
   status              OpportunityStatus @default(DRAFT)
 
+  applications Application[]
+
   company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
 
   createdAt DateTime @default(now())
@@ -324,6 +330,38 @@ model Opportunity {
   @@index([companyId])
   @@index([companyId, status])
   @@index([type])
+}
+
+enum ApplicationStatus {
+  PENDING
+  REVIEWING
+  ACCEPTED
+  REJECTED
+  WITHDRAWN //studen cancel apply
+}
+
+model Application {
+  id            String @id @default(uuid())
+  universityId  String
+  studentId     String
+  opportunityId String
+
+  status    ApplicationStatus @default(PENDING)
+  appliedAt DateTime          @default(now())
+
+  university  University  @relation(fields: [universityId], references: [id], onDelete: Restrict)
+  // The composite foreign key prevents assigning a student's application to another university.
+  student     Student     @relation(fields: [studentId, universityId], references: [id, universityId], onDelete: Restrict)
+  opportunity Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([studentId, opportunityId])
+  @@index([universityId])
+  @@index([studentId])
+  @@index([opportunityId])
+  @@index([status])
 }
 
 model AuditLog {

@@ -255,7 +255,8 @@ model Company {
   logoPublicId String?
   status       CompanyStatus @default(PENDING)
 
-  companyUsers CompanyUser[]
+  companyUsers  CompanyUser[]
+  opportunities Opportunity[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -289,6 +290,40 @@ model CompanyUser {
   @@index([companyId])
   @@index([companyId, role])
   @@index([status])
+}
+
+enum OpportunityType {
+  INTERNSHIP //intern 2-4month (normal)
+  MICRO_INTERNSHIP // intern follow task, ex: doing this test case module in 10day or in 2weeks
+  JOB //normal job, not belong to internship
+}
+
+enum OpportunityStatus {
+  DRAFT
+  OPEN
+  CLOSED
+  CANCELLED
+}
+
+model Opportunity {
+  id                  String            @id @default(uuid())
+  companyId           String
+  title               String
+  type                OpportunityType
+  description         String
+  location            String?
+  vacancies           Int?
+  applicationDeadline DateTime?
+  status              OpportunityStatus @default(DRAFT)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([companyId, status])
+  @@index([type])
 }
 
 model AuditLog {

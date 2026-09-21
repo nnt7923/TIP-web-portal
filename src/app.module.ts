@@ -16,6 +16,7 @@ import { InternshipPeriodModule } from './modules/internship-period/internship-p
 import { StudentModule } from './modules/student/student.module';
 import { CompanyModule } from './modules/company/company.module';
 import { CompanyUserModule } from './modules/companyuser/company-user.module';
+import { OpportunityModule } from './modules/opportunity/opportunity.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { CompanyUserModule } from './modules/companyuser/company-user.module';
     StudentModule,
     CompanyModule,
     CompanyUserModule,
+    OpportunityModule,
   ],
 })
 export class AppModule {}

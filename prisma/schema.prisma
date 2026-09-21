@@ -67,6 +67,7 @@ model University {
   internshipPeriods InternshipPeriod[]
   students          Student[]
   applications      Application[]
+  placements        Placement[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -95,9 +96,13 @@ model SchoolUser {
   account    Account    @relation(fields: [accountId], references: [id], onDelete: Cascade)
   university University @relation(fields: [universityId], references: [id])
 
+  supervisedPlacements Placement[] @relation("UniversitySupervisorPlacements")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Allows placements to reference supervisors within the same university.
+  @@unique([id, universityId])
   @@index([universityId])
   @@index([universityId, role])
 }
@@ -209,6 +214,7 @@ model Student {
 
   internships  StudentInternship[]
   applications Application[]
+  placements   Placement[]
 
   account    Account    @relation(fields: [accountId], references: [id], onDelete: Cascade)
   university University @relation(fields: [universityId], references: [id], onDelete: Restrict)
@@ -235,10 +241,14 @@ model StudentInternship {
   student          Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
   internshipPeriod InternshipPeriod @relation(fields: [internshipPeriodId], references: [id], onDelete: Restrict)
 
+  placements Placement[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([studentId, internshipPeriodId])
+  // Ensures a placement uses the internship registration of the same student.
+  @@unique([id, studentId])
   @@index([internshipPeriodId])
 }
 
@@ -261,6 +271,7 @@ model Company {
 
   companyUsers  CompanyUser[]
   opportunities Opportunity[]
+  placements    Placement[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -288,9 +299,13 @@ model CompanyUser {
   account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
   company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
 
+  supervisedPlacements Placement[] @relation("CompanySupervisorPlacements")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Allows placements to reference supervisors within the same company.
+  @@unique([id, companyId])
   @@index([companyId])
   @@index([companyId, role])
   @@index([status])
@@ -321,12 +336,15 @@ model Opportunity {
   status              OpportunityStatus @default(DRAFT)
 
   applications Application[]
+  placements   Placement[]
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Ensures a placement's opportunity belongs to its company.
+  @@unique([id, companyId])
   @@index([companyId])
   @@index([companyId, status])
   @@index([type])
@@ -354,13 +372,77 @@ model Application {
   student     Student     @relation(fields: [studentId, universityId], references: [id, universityId], onDelete: Restrict)
   opportunity Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Restrict)
 
+  placement Placement?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([studentId, opportunityId])
+  // Allows a placement to reference the application with its student and opportunity.
+  @@unique([id, studentId, opportunityId])
   @@index([universityId])
   @@index([studentId])
   @@index([opportunityId])
+  @@index([status])
+}
+
+enum PlacementStatus {
+  PENDING
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model Placement {
+  id String @id @default(uuid())
+
+  universityId String
+  studentId    String
+  companyId    String
+
+  applicationId       String? @unique
+  opportunityId       String?
+  // Optional for direct placements; multiple placements may preserve history in one period.
+  studentInternshipId String?
+
+  universitySupervisorId String?
+  companySupervisorId    String?
+
+  positionTitle String
+
+  startDate DateTime
+  endDate   DateTime
+
+  status PlacementStatus @default(PENDING)
+
+  university University @relation(fields: [universityId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  student    Student    @relation(fields: [studentId, universityId], references: [id, universityId], onDelete: Restrict, onUpdate: Restrict)
+  company    Company    @relation(fields: [companyId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  opportunity       Opportunity?       @relation(fields: [opportunityId, companyId], references: [id, companyId], onDelete: Restrict, onUpdate: Restrict)
+  application       Application?       @relation(fields: [applicationId, studentId, opportunityId], references: [id, studentId, opportunityId], onDelete: Restrict, onUpdate: Restrict)
+  studentInternship StudentInternship? @relation(fields: [studentInternshipId, studentId], references: [id, studentId], onDelete: Restrict, onUpdate: Restrict)
+
+  // Remove/reassign the supervisor before deleting their profile; organization IDs must stay intact.
+  universitySupervisor SchoolUser?  @relation("UniversitySupervisorPlacements", fields: [universitySupervisorId, universityId], references: [id, universityId], onDelete: Restrict, onUpdate: Restrict)
+  companySupervisor    CompanyUser? @relation("CompanySupervisorPlacements", fields: [companySupervisorId, companyId], references: [id, companyId], onDelete: Restrict, onUpdate: Restrict)
+
+  // SQL CHECK constraints in the migration enforce startDate < endDate
+  // and require opportunityId whenever applicationId is provided.
+  // The service must validate application acceptance and supervisor roles/statuses.
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([applicationId, studentId, opportunityId])
+  @@index([universityId])
+  @@index([studentId])
+  @@index([companyId])
+  @@index([opportunityId])
+  @@index([studentInternshipId])
+  @@index([universitySupervisorId])
+  @@index([companySupervisorId])
   @@index([status])
 }
 

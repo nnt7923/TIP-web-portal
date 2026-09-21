@@ -18,6 +18,7 @@ import { CompanyModule } from './modules/company/company.module';
 import { CompanyUserModule } from './modules/companyuser/company-user.module';
 import { OpportunityModule } from './modules/opportunity/opportunity.module';
 import { ApplicationModule } from './modules/application/application.module';
+import { PlacementModule } from './modules/placement/placement.module';
 
 @Module({
   imports: [
@@ -43,6 +44,7 @@ import { ApplicationModule } from './modules/application/application.module';
     CompanyUserModule,
     OpportunityModule,
     ApplicationModule,
+    PlacementModule,
   ],
 })
 export class AppModule {}

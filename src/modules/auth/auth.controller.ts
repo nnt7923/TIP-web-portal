@@ -3,6 +3,7 @@ import {
   Controller,
   HttpCode,
   HttpStatus,
+  Get,
   Post,
   Req,
   UnauthorizedException,
@@ -23,6 +24,7 @@ import { RevokeTokenDto } from './dto/revoke-token.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { JwtAuthGuard } from './guards/jwt-auth-guard';
 import { AuthRateLimitGuard } from './guards/auth-rate-limit.guard';
+import type { CurrentUserData } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('Auth')
 @UseGuards(AuthRateLimitGuard)
@@ -41,6 +43,21 @@ export class AuthController {
   @ApiOperation({ summary: 'Register a school user' })
   register(@Body() registerDto: RegisterDto) {
     return this.authService.register(registerDto);
+  }
+
+  @Get('me')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Get the authenticated account' })
+  me(@CurrentUser() user: CurrentUserData) {
+    return {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      fullName: user.fullName,
+      globalRole: user.globalRole,
+      status: user.status,
+    };
   }
 
   @Post('register-company')

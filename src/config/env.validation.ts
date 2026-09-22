@@ -11,6 +11,13 @@ export const envValidationSchema = Joi.object({
   REDIS_URL: Joi.string()
     .uri({ scheme: ['redis', 'rediss'] })
     .required(),
+  SMTP_HOST: Joi.string().allow('').default('smtp.gmail.com'),
+  SMTP_PORT: Joi.number().port().default(587),
+  SMTP_USER: Joi.string().allow('').optional(),
+  SMTP_PASS: Joi.string().allow('').optional(),
+  SMTP_FROM: Joi.string().allow('').optional(),
+  EMAIL_USER: Joi.string().allow('').optional(),
+  EMAIL_PASSWORD: Joi.string().allow('').optional(),
   CLOUDINARY_CLOUD_NAME: Joi.string().allow('').default(''),
   CLOUDINARY_API_KEY: Joi.string().allow('').default(''),
   CLOUDINARY_API_SECRET: Joi.string().allow('').default(''),

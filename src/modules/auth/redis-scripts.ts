@@ -2,12 +2,21 @@
 export const SAVE_SESSION = `
 if ARGV[5] ~= '' then
   local owner = redis.call('HGET', KEYS[1], 'accountId') or redis.call('HGET', KEYS[1], 'userId')
-  if owner ~= ARGV[1] or redis.call('HGET', KEYS[1], 'refreshJti') ~= ARGV[5] then return 0 end
+  if owner ~= ARGV[1] then return 0 end
+  if redis.call('HGET', KEYS[1], 'refreshJti') ~= ARGV[5] then
+    local cached = redis.call('GET', KEYS[3])
+    if cached then
+      local result = cjson.decode(cached)
+      if redis.call('HGET', KEYS[1], 'refreshJti') == result.refreshJti then return cached end
+    end
+    return 0
+  end
 end
 redis.call('HSET', KEYS[1], 'accountId', ARGV[1], 'refreshJti', ARGV[2])
 redis.call('EXPIRE', KEYS[1], ARGV[3])
 redis.call('SADD', KEYS[2], ARGV[4])
 if redis.call('TTL', KEYS[2]) < tonumber(ARGV[3]) then redis.call('EXPIRE', KEYS[2], ARGV[3]) end
+if ARGV[5] ~= '' then redis.call('SET', KEYS[3], ARGV[6], 'EX', 5) end
 return 1
 `;
 

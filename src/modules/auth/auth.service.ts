@@ -507,10 +507,9 @@ export class AuthService {
     );
     const sessionAccountId = session.accountId ?? session.userId;
 
-    if (
-      sessionAccountId !== payload.sub ||
-      session.refreshJti !== payload.jti
-    ) {
+    // The atomic rotation below also handles simultaneous requests using the
+    // same refresh token. A revoked session must never be recreated.
+    if (sessionAccountId !== payload.sub) {
       throw new UnauthorizedException('Refresh token has been revoked');
     }
 
@@ -839,15 +838,27 @@ export class AuthService {
 
     const saved = await this.redisService.connection.eval(
       SAVE_SESSION,
-      2,
+      3,
       sessionKey,
       accountSessionsKey,
+      `auth:refresh-result:${createHash('sha256')
+        .update(`${sessionId}:${expectedRefreshJti ?? ''}`)
+        .digest('hex')}`,
       account.id,
       refreshJti,
       sessionTtl,
       sessionId,
       expectedRefreshJti ?? '',
+      JSON.stringify({ accessToken, refreshToken, refreshJti }),
     );
+    if (typeof saved === 'string') {
+      // Redis returns the winning rotation for a five-second concurrency window.
+      const cached = JSON.parse(saved) as AuthTokens;
+      return {
+        accessToken: cached.accessToken,
+        refreshToken: cached.refreshToken,
+      };
+    }
     if (saved !== 1)
       throw new UnauthorizedException(
         'Refresh token has been revoked or already used',

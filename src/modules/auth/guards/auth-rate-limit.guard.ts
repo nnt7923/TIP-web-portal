@@ -18,7 +18,13 @@ export class AuthRateLimitGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<Request>();
     const action = context.getHandler().name;
-    const limit = ['register', 'registerCompany', 'resendOtp'].includes(action)
+    const limit = [
+      'register',
+      'registerUser',
+      'registerUniversity',
+      'registerCompany',
+      'resendOtp',
+    ].includes(action)
       ? 5
       : 30;
     const ip = request.ip ?? request.socket.remoteAddress ?? 'unknown';

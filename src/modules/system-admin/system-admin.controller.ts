@@ -74,6 +74,23 @@ export class SystemAdminController {
     );
   }
 
+  @Post('accounts/:id/university-approval')
+  @ApiOperation({
+    summary:
+      'Approve a new university and its registered administrator together',
+  })
+  approveUniversityRegistration(
+    @CurrentUser('id') actorId: string,
+    @Param('id', new ParseUUIDPipe()) accountId: string,
+    @Req() request: Request,
+  ) {
+    return this.systemAdminService.approveUniversityRegistration(
+      actorId,
+      accountId,
+      request.ip,
+    );
+  }
+
   @Get('universities')
   @ApiOperation({ summary: 'List and filter universities' })
   findAllUniversities(@Query() query: QueryUniversityDto) {

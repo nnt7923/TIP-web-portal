@@ -4,7 +4,14 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { AccountStatus, GlobalRole, Prisma } from '@prisma/client';
+import {
+  AccountStatus,
+  GlobalRole,
+  Prisma,
+  SchoolUserRole,
+  SchoolUserStatus,
+  UniversityStatus,
+} from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { AuthService } from '../auth/auth.service';
 import { QueryUniversityDto } from '../universities/dto/query-university.dto';
@@ -175,6 +182,75 @@ export class SystemAdminService {
     });
 
     return { message: 'All sessions for the account were revoked.' };
+  }
+
+  async approveUniversityRegistration(
+    actorId: string,
+    accountId: string,
+    ipAddress?: string,
+  ) {
+    return this.prisma.$transaction(
+      async (tx) => {
+        const account = await tx.account.findUnique({
+          where: { id: accountId },
+          select: accountSelect,
+        });
+        if (!account) throw new NotFoundException('Account was not found');
+        const profile = account.schoolUser;
+        if (
+          account.deletedAt ||
+          !account.emailVerifiedAt ||
+          account.status !== AccountStatus.ACTIVE ||
+          account.globalRole !== GlobalRole.USER
+        ) {
+          throw new BadRequestException(
+            'An active account with verified email is required',
+          );
+        }
+        if (
+          !profile ||
+          profile.role !== SchoolUserRole.UNIVERSITY_ADMIN ||
+          profile.status !== SchoolUserStatus.PENDING
+        ) {
+          throw new BadRequestException(
+            'Only a pending university administrator registration can be approved',
+          );
+        }
+        if (
+          profile.university.status !== UniversityStatus.PENDING &&
+          profile.university.status !== UniversityStatus.VERIFIED
+        ) {
+          throw new BadRequestException(
+            'A suspended or inactive university cannot be approved',
+          );
+        }
+        await tx.university.update({
+          where: { id: profile.universityId },
+          data: { status: UniversityStatus.VERIFIED },
+        });
+        await tx.schoolUser.update({
+          where: { id: profile.id },
+          data: { status: SchoolUserStatus.ACTIVE },
+        });
+        await tx.auditLog.create({
+          data: {
+            actorId,
+            action: 'UNIVERSITY_REGISTRATION_APPROVED',
+            entityType: 'University',
+            entityId: profile.universityId,
+            metadata: {
+              accountId,
+              schoolUserId: profile.id,
+              universityStatusFrom: profile.university.status,
+              universityStatusTo: UniversityStatus.VERIFIED,
+            },
+            ipAddress,
+          },
+        });
+        return { message: 'University verified and administrator approved.' };
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
   }
 
   findAllUniversities(query: QueryUniversityDto) {

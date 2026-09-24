@@ -19,6 +19,7 @@ import {
   Prisma,
   SchoolUserRole,
   SchoolUserStatus,
+  UniversityStatus,
 } from '@prisma/client';
 import {
   createHash,
@@ -35,6 +36,8 @@ import { RedisService } from '../../redis/redis.service';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { RegisterUserDto } from './dto/register-user.dto';
+import { RegisterUniversityDto } from './dto/register-university.dto';
 import { RegisterCompanyDto } from './dto/register-company.dto';
 import { ResendOtpDto } from './dto/resend.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
@@ -105,6 +108,27 @@ type CompanyRegistrationAccount = Prisma.AccountGetPayload<{
   select: typeof companyRegistrationAccountSelect;
 }>;
 
+const registrationAccountSelect = {
+  id: true,
+  fullName: true,
+  email: true,
+  username: true,
+  phone: true,
+  globalRole: true,
+  status: true,
+  emailVerifiedAt: true,
+  createdAt: true,
+  schoolUser: {
+    select: {
+      id: true,
+      universityId: true,
+      role: true,
+      status: true,
+      university: true,
+    },
+  },
+} satisfies Prisma.AccountSelect;
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -156,6 +180,104 @@ export class AuthService {
     });
 
     return this.issueTokens(account);
+  }
+
+  registerUser(dto: RegisterUserDto) {
+    return this.registerPersonalOrUniversity(dto);
+  }
+
+  registerUniversity(dto: RegisterUniversityDto) {
+    return this.registerPersonalOrUniversity(dto, dto);
+  }
+
+  private async registerPersonalOrUniversity(
+    dto: RegisterUserDto,
+    school?: RegisterUniversityDto,
+  ) {
+    const username = dto.username.trim();
+    const email = dto.email.trim().toLowerCase();
+    const existing = await this.prisma.account.findFirst({
+      where: { OR: [{ username }, { email }] },
+      select: { id: true },
+    });
+    if (existing)
+      throw new ConflictException('Username or email is already registered');
+
+    const code = school?.universityCode.trim().toUpperCase();
+    if (
+      code &&
+      (await this.prisma.university.findFirst({
+        where: { code: { equals: code, mode: 'insensitive' } },
+        select: { id: true },
+      }))
+    )
+      throw new ConflictException('University code is already registered');
+
+    let account: Prisma.AccountGetPayload<{
+      select: typeof registrationAccountSelect;
+    }>;
+    try {
+      // Nested writes create the university, profile and account atomically.
+      account = await this.prisma.account.create({
+        data: {
+          fullName: dto.fullName.trim(),
+          username,
+          email,
+          passwordHash: await this.hashPassword(dto.password),
+          phone: normalizeOptionalText(dto.phone),
+          globalRole: GlobalRole.USER,
+          status: AccountStatus.ACTIVE,
+          ...(school && {
+            schoolUser: {
+              create: {
+                role: SchoolUserRole.UNIVERSITY_ADMIN,
+                status: SchoolUserStatus.PENDING,
+                university: {
+                  create: {
+                    name: school.universityName.trim(),
+                    code: code!,
+                    website: normalizeOptionalText(school.website),
+                    address: normalizeOptionalText(school.address),
+                    status: UniversityStatus.PENDING,
+                  },
+                },
+              },
+            },
+          }),
+        },
+        select: registrationAccountSelect,
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException(
+          'Username, email or university code is already registered',
+        );
+      }
+      throw error;
+    }
+
+    // Keep an unverified registration on mail failure so resend-otp can recover
+    // without recreating accounts or orphaning a newly registered university.
+    let otpSent = true;
+    try {
+      await this.sendOtp(
+        account.id,
+        account.email,
+        OtpPurpose.EmailVerification,
+      );
+    } catch {
+      otpSent = false;
+    }
+    return {
+      message: school
+        ? 'University registration submitted. Verify email and wait for System Admin approval.'
+        : 'Registration successful. Verify your email before signing in.',
+      otpSent,
+      account,
+    };
   }
 
   async register(registerDto: RegisterDto) {

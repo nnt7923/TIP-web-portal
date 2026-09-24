@@ -41,9 +41,8 @@ export function assertAccountCanAuthenticate(account: AuthAccount): void {
     throw new ForbiddenException('Email has not been verified');
   }
   if (account.globalRole === GlobalRole.SYSTEM_ADMIN) return;
-  if (!account.schoolUser && !account.student && !account.companyUser) {
-    throw new ForbiddenException('Account has no organization profile');
-  }
+  // Verified personal accounts can sign in. Organization permissions remain
+  // enforced by profile/role guards and scoped services on each endpoint.
   if (
     account.schoolUser &&
     account.schoolUser.status !== SchoolUserStatus.ACTIVE

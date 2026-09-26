@@ -61,6 +61,9 @@ export class MajorController {
   }
 
   @Get()
+  @UseGuards(JwtAuthGuard, SchoolRolesGuard)
+  @SchoolRoles(SchoolUserRole.UNIVERSITY_ADMIN)
+  @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'Get and filter majors in the current university' })
   findAll(
     @CurrentUser() currentUser: CurrentUserData,
@@ -70,6 +73,9 @@ export class MajorController {
   }
 
   @Get(':id')
+  @UseGuards(JwtAuthGuard, SchoolRolesGuard)
+  @SchoolRoles(SchoolUserRole.UNIVERSITY_ADMIN)
+  @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'Get a major in the current university' })
   findOne(
     @CurrentUser() currentUser: CurrentUserData,

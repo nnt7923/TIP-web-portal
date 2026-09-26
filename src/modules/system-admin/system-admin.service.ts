@@ -289,6 +289,19 @@ export class SystemAdminService {
         );
       }
 
+      const order: Record<UniversityStatus, number> = {
+        [UniversityStatus.PENDING]: 0,
+        [UniversityStatus.VERIFIED]: 1,
+        [UniversityStatus.SUSPENDED]: 2,
+        [UniversityStatus.INACTIVE]: 3,
+      };
+
+      if (order[dto.status] < order[current.status]) {
+        throw new BadRequestException(
+          `Can not back to status before: ${current.status} -> ${dto.status}`,
+        );
+      }
+
       const university = await transaction.university.update({
         where: { id: universityId },
         data: { status: dto.status },

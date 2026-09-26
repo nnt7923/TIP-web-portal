@@ -75,6 +75,7 @@ export class AuthController {
       fullName: user.fullName,
       globalRole: user.globalRole,
       status: user.status,
+      schoolUser: user.schoolUser,
     };
   }
 

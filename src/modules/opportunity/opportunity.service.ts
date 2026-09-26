@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { OpportunityStatus, Prisma } from '@prisma/client';
+import { CompanyStatus, OpportunityStatus, Prisma, StudentStatus } from '@prisma/client';
 import type { CurrentUserData } from '../../common/decorators/current-user.decorator';
 import { getCompanyId } from '../../common/utils/company-scope.util';
 import { handlePrismaError } from '../../common/utils/prisma-error.util';
@@ -58,8 +58,33 @@ export class OpportunityService {
   }
 
   findAll(user: CurrentUserData, query: QueryOpportunityDto) {
-    const companyId = getCompanyId(user);
     const keyword = query.keyword?.trim();
+    if (user.student?.status === StudentStatus.ACTIVE) {
+      const where: Prisma.OpportunityWhereInput = {
+        AND: [
+          { status: OpportunityStatus.OPEN },
+          { OR: [{ applicationDeadline: null }, { applicationDeadline: { gte: new Date() } }] },
+          { company: { status: CompanyStatus.VERIFIED } },
+        ],
+        ...(query.type && { type: query.type }),
+        ...(keyword && { AND: [
+          { status: OpportunityStatus.OPEN },
+          { OR: [{ applicationDeadline: null }, { applicationDeadline: { gte: new Date() } }] },
+          { company: { status: CompanyStatus.VERIFIED } },
+          { OR: [
+          { title: { contains: keyword, mode: 'insensitive' } },
+          { description: { contains: keyword, mode: 'insensitive' } },
+          { location: { contains: keyword, mode: 'insensitive' } },
+          ] },
+        ] }),
+      };
+      return this.prisma.opportunity.findMany({
+        where,
+        include: { company: { select: { id: true, name: true, logoUrl: true, status: true } } },
+        orderBy: { createdAt: 'desc' },
+      });
+    }
+    const companyId = getCompanyId(user);
     const where: Prisma.OpportunityWhereInput = {
       companyId,
       ...(query.type && { type: query.type }),
@@ -80,6 +105,19 @@ export class OpportunityService {
   }
 
   async findOne(user: CurrentUserData, id: string) {
+    if (user.student?.status === StudentStatus.ACTIVE) {
+      const opportunity = await this.prisma.opportunity.findFirst({
+        where: {
+          id,
+          status: OpportunityStatus.OPEN,
+          OR: [{ applicationDeadline: null }, { applicationDeadline: { gte: new Date() } }],
+          company: { status: CompanyStatus.VERIFIED },
+        },
+        include: { company: { select: { id: true, name: true, logoUrl: true, status: true } } },
+      });
+      if (!opportunity) throw new NotFoundException('Opportunity is not available');
+      return opportunity;
+    }
     const companyId = getCompanyId(user);
     const opportunity = await this.findOneInCompany(id, companyId);
 

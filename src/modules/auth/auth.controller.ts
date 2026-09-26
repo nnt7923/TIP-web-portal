@@ -76,6 +76,8 @@ export class AuthController {
       globalRole: user.globalRole,
       status: user.status,
       schoolUser: user.schoolUser,
+      student: user.student,
+      companyUser: user.companyUser,
     };
   }
 

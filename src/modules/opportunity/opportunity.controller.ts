@@ -36,11 +36,6 @@ import { QueryOpportunityDto } from './dto/query-opportunity.dto';
 import { UpdateOpportunityDto } from './dto/update-opportunity.dto';
 import { OpportunityService } from './opportunity.service';
 
-const companyReaderRoles = [
-  CompanyUserRole.COMPANY_ADMIN,
-  CompanyUserRole.STAFF,
-];
-
 const opportunityBodySchema = {
   type: 'object',
   properties: {
@@ -65,13 +60,13 @@ const opportunityBodySchema = {
 
 @ApiTags('Opportunities')
 @ApiBearerAuth('access-token')
-@UseGuards(JwtAuthGuard, CompanyRolesGuard)
-@CompanyRoles(...companyReaderRoles)
+@UseGuards(JwtAuthGuard)
 @Controller('opportunities')
 export class OpportunityController {
   constructor(private readonly opportunityService: OpportunityService) {}
 
   @Post()
+  @UseGuards(CompanyRolesGuard)
   @CompanyRoles(CompanyUserRole.COMPANY_ADMIN)
   @ApiOperation({ summary: 'Company Admin: create an opportunity' })
   @ApiConsumes('application/json')
@@ -107,6 +102,7 @@ export class OpportunityController {
   }
 
   @Patch(':id')
+  @UseGuards(CompanyRolesGuard)
   @CompanyRoles(CompanyUserRole.COMPANY_ADMIN)
   @ApiOperation({ summary: 'Company Admin: update an opportunity' })
   @ApiConsumes('application/json')
@@ -120,6 +116,7 @@ export class OpportunityController {
   }
 
   @Delete(':id')
+  @UseGuards(CompanyRolesGuard)
   @CompanyRoles(CompanyUserRole.COMPANY_ADMIN)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Company Admin: delete an opportunity' })

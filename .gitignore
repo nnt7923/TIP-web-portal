@@ -2,6 +2,14 @@ node_modules/
 dist/
 coverage/
 
+# Local tests (including tests colocated with source files)
+test/
+tests/
+__tests__/
+*.test.*
+*.spec.*
+*.e2e-spec.*
+
 # Environment variables and local overrides
 .env
 .env.*

@@ -13,6 +13,7 @@ import {
 } from '@prisma/client';
 import type { CurrentUserData } from '../../common/decorators/current-user.decorator';
 import { hashPassword } from '../../common/utils/password.util';
+import { assertPendingStatusTransition } from '../../common/utils/status-transition.util';
 import { handlePrismaError } from '../../common/utils/prisma-error.util';
 import { PrismaService } from '../../database/prisma.service';
 import { AuthService } from '../auth/auth.service';
@@ -93,6 +94,7 @@ export class SchoolUserService {
   async update(user: CurrentUserData, id: string, dto: UpdateSchoolUserDto) {
     const target = await this.findOne(user, id);
     this.assertManageTarget(user, target);
+    assertPendingStatusTransition(target.status, dto.status);
     if (dto.role !== undefined) this.assertRoleAssignment(user, dto.role);
     const email = dto.email?.trim().toLowerCase();
     const emailChanged = email !== undefined && email !== target.account.email;
@@ -109,6 +111,7 @@ export class SchoolUserService {
       const updated = await this.prisma.schoolUser.update({
         where: {
           id,
+          ...(dto.status !== undefined && { status: target.status }),
           universityId: target.universityId,
           account: { globalRole: GlobalRole.USER },
         },

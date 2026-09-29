@@ -13,6 +13,10 @@ import {
   UniversityStatus,
 } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
+import {
+  assertPendingStatusTransition,
+  assertUniversityStatusTransition,
+} from '../../common/utils/status-transition.util';
 import { AuthService } from '../auth/auth.service';
 import { QueryUniversityDto } from '../universities/dto/query-university.dto';
 import { QueryAccountDto } from './dto/query-account.dto';
@@ -141,8 +145,9 @@ export class SystemAdminService {
         }
       }
 
+      assertPendingStatusTransition(current.status, dto.status);
       const account = await transaction.account.update({
-        where: { id: accountId },
+        where: { id: accountId, status: current.status },
         data: { status: dto.status },
         select: accountSelect,
       });
@@ -289,21 +294,10 @@ export class SystemAdminService {
         );
       }
 
-      const order: Record<UniversityStatus, number> = {
-        [UniversityStatus.PENDING]: 0,
-        [UniversityStatus.VERIFIED]: 1,
-        [UniversityStatus.SUSPENDED]: 2,
-        [UniversityStatus.INACTIVE]: 3,
-      };
-
-      if (order[dto.status] < order[current.status]) {
-        throw new BadRequestException(
-          `Can not back to status before: ${current.status} -> ${dto.status}`,
-        );
-      }
+      assertUniversityStatusTransition(current.status, dto.status);
 
       const university = await transaction.university.update({
-        where: { id: universityId },
+        where: { id: universityId, status: current.status },
         data: { status: dto.status },
       });
 

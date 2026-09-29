@@ -30,6 +30,8 @@ import { InternshipPeriodStatus } from '@prisma/client';
 import { CreateInternShipPeriodDto } from './dto/create-internship-period.dto';
 import { UpdateInternShipPeriodDto } from './dto/update-internship-period.dto';
 import { QueryInternShipPeriodDto } from './dto/query-internship-period.dto';
+import { CreateInternshipRegistrationDto } from './dto/create-internship-registration.dto';
+import { QueryInternshipRegistrationsDto } from './dto/query-internship-registrations.dto';
 
 @ApiTags('Internship Period')
 @Controller('internship-period')
@@ -172,6 +174,41 @@ export class InternshipPeriodController {
     @Body() dto: UpdateInternShipPeriodDto,
   ) {
     return this.internshipPeriodService.update(currentUser, id, dto);
+  }
+
+  @Post(':id/registrations')
+  @UseGuards(JwtAuthGuard, SchoolRolesGuard)
+  @SchoolRoles(SchoolUserRole.UNIVERSITY_ADMIN, SchoolUserRole.STAFF)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({
+    summary:
+      'Register a student from your university for an open internship period',
+  })
+  registerStudent(
+    @CurrentUser() currentUser: CurrentUserData,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: CreateInternshipRegistrationDto,
+  ) {
+    return this.internshipPeriodService.registerStudent(currentUser, id, dto);
+  }
+
+  @Get(':id/registrations')
+  @UseGuards(JwtAuthGuard, SchoolRolesGuard)
+  @SchoolRoles(SchoolUserRole.UNIVERSITY_ADMIN, SchoolUserRole.STAFF)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({
+    summary: 'List student registrations for a period in your university',
+  })
+  listRegistrations(
+    @CurrentUser() currentUser: CurrentUserData,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Query() query: QueryInternshipRegistrationsDto,
+  ) {
+    return this.internshipPeriodService.listRegistrations(
+      currentUser,
+      id,
+      query,
+    );
   }
 
   @Delete(':id')

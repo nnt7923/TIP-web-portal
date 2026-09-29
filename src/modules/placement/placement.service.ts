@@ -180,7 +180,16 @@ export class PlacementService {
       } satisfies Prisma.PlacementUncheckedUpdateManyInput;
       if (!Object.keys(data).length)
         throw new BadRequestException('At least one field must be updated');
-      await this.validateContext(tx, { ...current, ...data }, current.id);
+      if (changesSchedule) {
+        await this.validateContext(tx, { ...current, ...data }, current.id);
+      } else {
+        // Repair our assignment even when the other organization's assignee is inactive.
+        await this.validateUniversitySupervisor(
+          tx,
+          current.universityId,
+          dto.universitySupervisorId,
+        );
+      }
       return this.save(tx, user.id, current, scope, data, 'PLACEMENT_UPDATED');
     });
   }
@@ -231,10 +240,10 @@ export class PlacementService {
         throw new BadRequestException(
           'companySupervisorId is required; use null to unassign',
         );
-      await this.validateContext(
+      await this.validateCompanySupervisor(
         tx,
-        { ...current, companySupervisorId: dto.companySupervisorId },
-        current.id,
+        current.companyId,
+        dto.companySupervisorId,
       );
       return this.save(
         tx,
@@ -404,37 +413,16 @@ export class PlacementService {
           'JOB opportunities cannot be linked to an internship period',
         );
     }
-    if (data.universitySupervisorId) {
-      const supervisor = await tx.schoolUser.findFirst({
-        where: {
-          id: data.universitySupervisorId,
-          universityId: data.universityId,
-          role: SchoolUserRole.UNIVERSITY_SUPERVISOR,
-          status: SchoolUserStatus.ACTIVE,
-          account: activeAccount,
-        },
-        select: { id: true },
-      });
-      if (!supervisor)
-        throw new NotFoundException(
-          'An active UNIVERSITY_SUPERVISOR was not found in this university',
-        );
-    }
-    if (data.companySupervisorId) {
-      const supervisor = await tx.companyUser.findFirst({
-        where: {
-          id: data.companySupervisorId,
-          companyId: data.companyId,
-          status: CompanyUserStatus.ACTIVE,
-          account: activeAccount,
-        },
-        select: { id: true },
-      });
-      if (!supervisor)
-        throw new NotFoundException(
-          'An active company supervisor was not found in this company',
-        );
-    }
+    await this.validateUniversitySupervisor(
+      tx,
+      data.universityId,
+      data.universitySupervisorId,
+    );
+    await this.validateCompanySupervisor(
+      tx,
+      data.companyId,
+      data.companySupervisorId,
+    );
     if (data.studentInternshipId) {
       const registration = await tx.studentInternship.findFirst({
         where: {
@@ -491,6 +479,49 @@ export class PlacementService {
           'This internship registration already has a non-cancelled placement',
         );
     }
+  }
+
+  private async validateUniversitySupervisor(
+    tx: Prisma.TransactionClient,
+    universityId: string,
+    id: string | null | undefined,
+  ): Promise<void> {
+    if (!id) return;
+    const supervisor = await tx.schoolUser.findFirst({
+      where: {
+        id,
+        universityId,
+        role: SchoolUserRole.UNIVERSITY_SUPERVISOR,
+        status: SchoolUserStatus.ACTIVE,
+        account: activeAccount,
+      },
+      select: { id: true },
+    });
+    if (!supervisor)
+      throw new NotFoundException(
+        'An active UNIVERSITY_SUPERVISOR was not found in this university',
+      );
+  }
+
+  private async validateCompanySupervisor(
+    tx: Prisma.TransactionClient,
+    companyId: string,
+    id: string | null | undefined,
+  ): Promise<void> {
+    if (!id) return;
+    const supervisor = await tx.companyUser.findFirst({
+      where: {
+        id,
+        companyId,
+        status: CompanyUserStatus.ACTIVE,
+        account: activeAccount,
+      },
+      select: { id: true },
+    });
+    if (!supervisor)
+      throw new NotFoundException(
+        'An active company supervisor was not found in this company',
+      );
   }
 
   /** Đồng bộ trạng thái đăng ký thực tập với tiến độ placement, trong cùng transaction. */

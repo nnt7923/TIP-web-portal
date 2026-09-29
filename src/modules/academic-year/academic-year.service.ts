@@ -76,43 +76,52 @@ export class AcademicYearService {
     dto: UpdateAcademicYearDto,
   ) {
     const universityId = this.getUniversityId(currentUser);
-    const currentAcademicYear = await this.findOneInUniversity(
-      id,
-      universityId,
-    );
-    const startDate = dto.startDate
-      ? new Date(dto.startDate)
-      : currentAcademicYear.startDate;
-    const endDate = dto.endDate
-      ? new Date(dto.endDate)
-      : currentAcademicYear.endDate;
-
-    this.assertValidDateRange(startDate, endDate);
-
-    const outsidePeriod = await this.prisma.internshipPeriod.findFirst({
-      where: {
-        academicYearId: id,
-        OR: [{ startDate: { lt: startDate } }, { endDate: { gt: endDate } }],
-      },
-      select: { id: true },
-    });
-    if (outsidePeriod)
-      throw new BadRequestException(
-        'Existing internship periods fall outside the new academic year dates',
-      );
-
-    const data: Prisma.AcademicYearUpdateInput = {
-      ...(dto.name !== undefined && { name: dto.name.trim() }),
-      ...(dto.startDate !== undefined && { startDate }),
-      ...(dto.endDate !== undefined && { endDate }),
-      ...(dto.status !== undefined && { status: dto.status }),
-    };
-
     try {
-      return await this.prisma.academicYear.update({
-        where: { id, universityId },
-        data,
-      });
+      return await this.prisma.$transaction(
+        async (tx) => {
+          const currentAcademicYear = await this.findOneInUniversity(
+            id,
+            universityId,
+            tx,
+          );
+          const startDate = dto.startDate
+            ? new Date(dto.startDate)
+            : currentAcademicYear.startDate;
+          const endDate = dto.endDate
+            ? new Date(dto.endDate)
+            : currentAcademicYear.endDate;
+
+          this.assertValidDateRange(startDate, endDate);
+
+          const outsidePeriod = await tx.internshipPeriod.findFirst({
+            where: {
+              academicYearId: id,
+              OR: [
+                { startDate: { lt: startDate } },
+                { endDate: { gt: endDate } },
+              ],
+            },
+            select: { id: true },
+          });
+          if (outsidePeriod)
+            throw new BadRequestException(
+              'Existing internship periods fall outside the new academic year dates',
+            );
+
+          const data: Prisma.AcademicYearUpdateInput = {
+            ...(dto.name !== undefined && { name: dto.name.trim() }),
+            ...(dto.startDate !== undefined && { startDate }),
+            ...(dto.endDate !== undefined && { endDate }),
+            ...(dto.status !== undefined && { status: dto.status }),
+          };
+
+          return await tx.academicYear.update({
+            where: { id, universityId },
+            data,
+          });
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      );
     } catch (error) {
       handlePrismaError(error, {
         duplicate: 'Academic Year already exists in this university',
@@ -141,8 +150,12 @@ export class AcademicYearService {
   }
 
   /** Finds an Academic Year only when it belongs to the current university. */
-  private async findOneInUniversity(id: string, universityId: string) {
-    const academicYear = await this.prisma.academicYear.findFirst({
+  private async findOneInUniversity(
+    id: string,
+    universityId: string,
+    tx: Prisma.TransactionClient = this.prisma,
+  ) {
+    const academicYear = await tx.academicYear.findFirst({
       where: { id, universityId },
     });
 

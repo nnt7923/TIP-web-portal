@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { assertPendingStatusTransition } from '../../common/utils/status-transition.util';
 import { CloudinaryService } from '../../cloudinary/cloudinary.service';
 import { handlePrismaError } from '../../common/utils/prisma-error.util';
 import { normalizeOptionalText } from '../../common/utils/text.util';
@@ -104,6 +105,7 @@ export class CompanyService {
     file?: { buffer: Buffer },
   ) {
     const currentCompany = await this.findOne(id);
+    assertPendingStatusTransition(currentCompany.status, dto.status);
     const data: Prisma.CompanyUpdateInput = {
       ...(dto.name !== undefined && { name: dto.name.trim() }),
       ...(dto.website !== undefined && {
@@ -143,7 +145,12 @@ export class CompanyService {
       const updatedCompany = await this.prisma.$transaction(
         async (transaction) => {
           const company = await transaction.company.update({
-            where: { id },
+            where: {
+              id,
+              ...(dto.status !== undefined && {
+                status: currentCompany.status,
+              }),
+            },
             data,
           });
 

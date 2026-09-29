@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { assertUniversityStatusTransition } from '../../common/utils/status-transition.util';
 import { CloudinaryService } from '../../cloudinary/cloudinary.service';
 import { handlePrismaError } from '../../common/utils/prisma-error.util';
 import {
@@ -92,6 +93,10 @@ export class UniversitiesService {
     file?: { buffer: Buffer },
   ) {
     const currentUniversity = await this.findOne(id);
+    assertUniversityStatusTransition(
+      currentUniversity.status,
+      updateUniversityDto.status,
+    );
     const { logoUrl: requestedLogoUrl, ...universityData } =
       updateUniversityDto;
     let uploadedLogoPublicId: string | undefined;
@@ -134,7 +139,19 @@ export class UniversitiesService {
           where: { id },
           select: { status: true },
         });
-        const updated = await tx.university.update({ where: { id }, data });
+        assertUniversityStatusTransition(
+          before.status,
+          updateUniversityDto.status,
+        );
+        const updated = await tx.university.update({
+          where: {
+            id,
+            ...(updateUniversityDto.status !== undefined && {
+              status: before.status,
+            }),
+          },
+          data,
+        });
         if (
           updateUniversityDto.status !== undefined &&
           before.status !== updated.status

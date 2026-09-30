@@ -11,14 +11,17 @@ export const envValidationSchema = Joi.object({
   REDIS_URL: Joi.string()
     .uri({ scheme: ['redis', 'rediss'] })
     .required(),
-  RESEND_API_KEY: Joi.string()
+  SMTP_HOST: Joi.string().hostname().default('smtp.gmail.com'),
+  SMTP_PORT: Joi.number().valid(465, 587).default(587),
+  SMTP_FROM: Joi.string().trim().allow('').optional(),
+  SMTP_USER: Joi.string()
     .trim()
     .when('NODE_ENV', {
       is: 'production',
       then: Joi.required(),
       otherwise: Joi.allow('').optional(),
     }),
-  RESEND_FROM: Joi.string()
+  SMTP_PASS: Joi.string()
     .trim()
     .when('NODE_ENV', {
       is: 'production',

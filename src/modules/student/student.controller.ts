@@ -1,4 +1,8 @@
 import {
+  MAX_UPLOAD_BYTES,
+  UPLOAD_VALIDATOR_OPTIONS,
+} from '../../common/upload-limits';
+import {
   Body,
   Controller,
   Delete,
@@ -57,7 +61,7 @@ export class StudentController {
   @Post()
   @SchoolRoles(SchoolUserRole.UNIVERSITY_ADMIN)
   @UseInterceptors(
-    FileInterceptor('cv', { limits: { fileSize: 5 * 1024 * 1024, files: 1 } }),
+    FileInterceptor('cv', { limits: { fileSize: MAX_UPLOAD_BYTES, files: 1 } }),
   )
   @ApiOperation({ summary: 'Create a student' })
   @ApiConsumes('multipart/form-data', 'application/json')
@@ -92,7 +96,7 @@ export class StudentController {
         cv: {
           type: 'string',
           format: 'binary',
-          description: 'Optional PDF CV, maximum 5 MB.',
+          description: 'Optional PDF CV, maximum 4 MiB.',
         },
       },
     },
@@ -103,7 +107,7 @@ export class StudentController {
     @UploadedFile(
       new ParseFilePipeBuilder()
         .addFileTypeValidator({ fileType: 'application/pdf' })
-        .addMaxSizeValidator({ maxSize: 5 * 1024 * 1024 })
+        .addMaxSizeValidator(UPLOAD_VALIDATOR_OPTIONS)
         .build({ fileIsRequired: false }),
     )
     file?: UploadedCvFile,
@@ -131,7 +135,7 @@ export class StudentController {
 
   @Patch('me')
   @UseInterceptors(
-    FileInterceptor('cv', { limits: { fileSize: 5 * 1024 * 1024, files: 1 } }),
+    FileInterceptor('cv', { limits: { fileSize: MAX_UPLOAD_BYTES, files: 1 } }),
   )
   @ApiOperation({ summary: 'Student: update my name, phone and CV' })
   @ApiConsumes('multipart/form-data', 'application/json')
@@ -145,7 +149,7 @@ export class StudentController {
         cv: {
           type: 'string',
           format: 'binary',
-          description: 'PDF, maximum 5 MB',
+          description: 'PDF, maximum 4 MiB',
         },
       },
     },
@@ -156,7 +160,7 @@ export class StudentController {
     @UploadedFile(
       new ParseFilePipeBuilder()
         .addFileTypeValidator({ fileType: 'application/pdf' })
-        .addMaxSizeValidator({ maxSize: 5 * 1024 * 1024 })
+        .addMaxSizeValidator(UPLOAD_VALIDATOR_OPTIONS)
         .build({ fileIsRequired: false }),
     )
     file?: UploadedCvFile,
@@ -177,7 +181,7 @@ export class StudentController {
   @Patch(':id')
   @SchoolRoles(SchoolUserRole.UNIVERSITY_ADMIN)
   @UseInterceptors(
-    FileInterceptor('cv', { limits: { fileSize: 5 * 1024 * 1024, files: 1 } }),
+    FileInterceptor('cv', { limits: { fileSize: MAX_UPLOAD_BYTES, files: 1 } }),
   )
   @ApiOperation({ summary: 'Update a student' })
   @ApiConsumes('multipart/form-data', 'application/json')
@@ -197,7 +201,7 @@ export class StudentController {
         cv: {
           type: 'string',
           format: 'binary',
-          description: 'Optional replacement PDF CV, maximum 5 MB.',
+          description: 'Optional replacement PDF CV, maximum 4 MiB.',
         },
         status: {
           type: 'string',
@@ -213,7 +217,7 @@ export class StudentController {
     @UploadedFile(
       new ParseFilePipeBuilder()
         .addFileTypeValidator({ fileType: 'application/pdf' })
-        .addMaxSizeValidator({ maxSize: 5 * 1024 * 1024 })
+        .addMaxSizeValidator(UPLOAD_VALIDATOR_OPTIONS)
         .build({ fileIsRequired: false }),
     )
     file?: UploadedCvFile,

@@ -1,0 +1,10 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nestjs",
+  "installCommand": "npm ci --include=dev && npm run db:generate",
+  "buildCommand": "npm run build",
+  "regions": ["iad1"],
+  "functions": {
+    "src/main.ts": { "maxDuration": 60 }
+  }
+}

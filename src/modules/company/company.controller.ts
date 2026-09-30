@@ -1,4 +1,8 @@
 import {
+  MAX_UPLOAD_BYTES,
+  UPLOAD_VALIDATOR_OPTIONS,
+} from '../../common/upload-limits';
+import {
   Body,
   Controller,
   Delete,
@@ -36,12 +40,12 @@ import { UpdateCompanyDto } from './dto/update-company.dto';
 type UploadedLogoFile = { buffer: Buffer };
 
 const logoUpload = FileInterceptor('logo', {
-  limits: { fileSize: 5 * 1024 * 1024, files: 1 },
+  limits: { fileSize: MAX_UPLOAD_BYTES, files: 1 },
 });
 
 const optionalLogoPipe = new ParseFilePipeBuilder()
   .addFileTypeValidator({ fileType: /(jpg|jpeg|png|webp)$/ })
-  .addMaxSizeValidator({ maxSize: 5 * 1024 * 1024 })
+  .addMaxSizeValidator(UPLOAD_VALIDATOR_OPTIONS)
   .build({ fileIsRequired: false });
 
 @ApiTags('Companies')
@@ -69,7 +73,7 @@ export class CompanyController {
         logo: {
           type: 'string',
           format: 'binary',
-          description: 'Optional JPG, PNG or WebP image; maximum 5 MB.',
+          description: 'Optional JPG, PNG or WebP image; maximum 4 MiB.',
         },
       },
     },
@@ -116,7 +120,7 @@ export class CompanyController {
         logo: {
           type: 'string',
           format: 'binary',
-          description: 'Replacement JPG, PNG or WebP; maximum 5 MB.',
+          description: 'Replacement JPG, PNG or WebP; maximum 4 MiB.',
         },
         status: { type: 'string', enum: Object.values(CompanyStatus) },
       },

@@ -49,3 +49,5 @@ temp/
 .agents/
 .neon
 .neon-build/
+
+.vercel/

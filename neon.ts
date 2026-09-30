@@ -1,10 +1,6 @@
 import { defineConfig } from '@neon/config/v1';
 
 const optionalKeys = [
-  'EMAIL_PROVIDER',
-  'BREVO_API_KEY',
-  'BREVO_SENDER_EMAIL',
-  'BREVO_SENDER_NAME',
   'SMTP_HOST',
   'SMTP_PORT',
   'SMTP_USER',

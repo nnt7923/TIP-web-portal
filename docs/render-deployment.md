@@ -22,9 +22,11 @@ Set the environment variables declared in `render.yaml` using the backend's loca
 
 ## Email on the free plan
 
-Render Free blocks outgoing SMTP on ports 25, 465 and 587. Set `EMAIL_PROVIDER=brevo`, `BREVO_API_KEY`, and `BREVO_SENDER_EMAIL` to send OTP over Brevo's HTTPS API. The sender must be verified in Brevo and transactional sending must be enabled. `BREVO_SENDER_NAME` defaults to `TIP Web Portal`. Existing SMTP environments keep working with `EMAIL_PROVIDER=smtp` (the default).
+The backend uses SMTP through Nodemailer. Configure `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` and `SMTP_FROM` from the existing backend environment. Gmail requires an app password.
 
-Use an API key from Brevo Settings → SMTP & API → API Keys, not an SMTP key. Keep deployment credentials such as `RENDER_API_KEY` only on your machine; never upload them into the running service.
+Render Free blocks outgoing SMTP on ports 25, 465 and 587. With the current Gmail configuration, the API can run on this plan but OTP delivery for registration and password reset will fail. Successful API health checks do not verify email delivery. Use a hosting plan that allows SMTP before relying on these email flows.
+
+Keep deployment credentials such as `RENDER_API_KEY` only on your machine; never upload them into the running service.
 
 Free instances also sleep after 15 minutes without incoming traffic. The first request may take about a minute to wake the service, exceeding the frontend's normal request timeout; retry after startup.
 

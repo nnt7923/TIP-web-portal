@@ -6,8 +6,8 @@ import { timingSafeEqual } from 'node:crypto';
 import type { NextFunction, Request, Response } from 'express';
 import { AppModule } from './app.module';
 
-export async function createBackendApp() {
-  const app = await NestFactory.create(AppModule);
+export async function createBackendApp(factory = NestFactory) {
+  const app = await factory.create(AppModule);
 
   // Apply server-to-server authentication consistently across hosting platforms.
   // Health checks remain accessible to the hosting platform.

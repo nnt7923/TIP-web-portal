@@ -1,8 +1,11 @@
 # Deploy the NestJS API to Vercel
 
 Use a separate `tip-web-portal-api` project in the same Vercel account as the
-existing frontend. `vercel.json` selects NestJS, `iad1`, a 60-second duration,
-Prisma generation during installation and the Nest build command. Node 22 is
+existing frontend. `vercel.json` selects NestJS, `iad1`, Prisma generation
+during installation and the Nest build command. Set Function Max Duration to
+60 seconds in the project's Functions settings (`resourceConfig.functionDefaultTimeout`
+in the Vercel API); native NestJS does not accept `src/main.ts` as an `api/*`
+function pattern. Node 22 is
 selected in `package.json`. Vercel detects `src/main.ts` directly; keep the
 normal Nest entrypoint and decorator metadata. Database and Redis connections
 are shared by requests within each application instance.

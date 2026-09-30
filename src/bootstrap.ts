@@ -9,7 +9,7 @@ import { AppModule } from './app.module';
 export async function createBackendApp() {
   const app = await NestFactory.create(AppModule);
 
-  // Render's native Node entry has the same server-to-server protection as Neon.
+  // Apply server-to-server authentication consistently across hosting platforms.
   // Health checks remain accessible to the hosting platform.
   const originSecret = app.get(ConfigService).get<string>('ORIGIN_SECRET');
   if (originSecret) {

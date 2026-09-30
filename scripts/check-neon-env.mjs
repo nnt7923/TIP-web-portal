@@ -6,6 +6,8 @@ for (const key of [
   'REDIS_URL',
   'JWT_SECRET',
   'ORIGIN_SECRET',
+  'RESEND_API_KEY',
+  'RESEND_FROM',
 ]) {
   if (!env[key]) throw new Error(`Missing ${key} in .env`);
 }

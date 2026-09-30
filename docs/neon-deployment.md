@@ -15,7 +15,7 @@ Keep secrets in the ignored `.env` file:
 - `REDIS_URL`: cloud Redis TLS URL (`rediss://...`). A local Redis URL cannot work on Neon.
 - `JWT_SECRET` and optionally `JWT_REFRESH_SECRET`: existing JWT signing secrets.
 - `ORIGIN_SECRET`: random secret shared only with the Next.js server.
-- `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, optionally `SMTP_FROM`: OTP mail transport.
+- `RESEND_API_KEY` and `RESEND_FROM`: OTP delivery through the Resend HTTPS API. Use a sender on a verified domain; both variables are required in production.
 - `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`: uploads.
 
 `neon env pull --service postgres` updates database URLs. Never commit `.env`, `.env.*` backups, `.neon` or `.neon-build`.

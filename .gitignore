@@ -47,3 +47,5 @@ temp/
 .history/
 .codex/
 .agents/
+.neon
+.neon-build/

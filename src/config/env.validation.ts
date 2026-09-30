@@ -12,6 +12,20 @@ export const envValidationSchema = Joi.object({
     .uri({ scheme: ['redis', 'rediss'] })
     .required(),
   SMTP_HOST: Joi.string().allow('').default('smtp.gmail.com'),
+  EMAIL_PROVIDER: Joi.string().valid('smtp', 'brevo').default('smtp'),
+  BREVO_API_KEY: Joi.string().when('EMAIL_PROVIDER', {
+    is: 'brevo',
+    then: Joi.required(),
+    otherwise: Joi.allow('').optional(),
+  }),
+  BREVO_SENDER_EMAIL: Joi.string()
+    .email()
+    .when('EMAIL_PROVIDER', {
+      is: 'brevo',
+      then: Joi.required(),
+      otherwise: Joi.allow('').optional(),
+    }),
+  BREVO_SENDER_NAME: Joi.string().default('TIP Web Portal'),
   SMTP_PORT: Joi.number().port().default(587),
   SMTP_USER: Joi.string().allow('').optional(),
   SMTP_PASS: Joi.string().allow('').optional(),

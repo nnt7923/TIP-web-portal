@@ -1,45 +1,9 @@
-import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { NestFactory } from '@nestjs/core';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { AppModule } from './app.module';
+import { createBackendApp } from './bootstrap';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-  const configService = app.get(ConfigService);
-
-  app.enableCors();
-  app.enableShutdownHooks();
-  app.useGlobalPipes(
-    new ValidationPipe({
-      transform: true,
-      whitelist: true,
-      forbidNonWhitelisted: true,
-    }),
-  );
-
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle('TIP Web Portal API')
-    .setDescription('API documentation for TIP Web Portal')
-    .setVersion('1.0')
-    .addBearerAuth(
-      {
-        type: 'http',
-        scheme: 'bearer',
-        bearerFormat: 'JWT',
-        name: 'Authorization',
-        in: 'header',
-      },
-      'access-token',
-    )
-    .build();
-  const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('swagger', app, swaggerDocument, {
-    customSiteTitle: 'TIP Web Portal API',
-    swaggerOptions: { persistAuthorization: true },
-  });
-
-  const port = configService.get<number>('PORT', 3000);
-  await app.listen(port);
+  const app = await createBackendApp();
+  const port = app.get(ConfigService).get<number>('PORT', 3000);
+  await app.listen(port, '0.0.0.0');
 }
 void bootstrap();

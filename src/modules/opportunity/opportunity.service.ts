@@ -17,6 +17,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { CreateOpportunityDto } from './dto/create-opportunity.dto';
 import { QueryOpportunityDto } from './dto/query-opportunity.dto';
 import { UpdateOpportunityDto } from './dto/update-opportunity.dto';
+import { QueryPublicOpportunityDto } from './dto/query-public-opportunity.dto';
 
 const opportunityInclude = {
   company: { select: { id: true, name: true, logoUrl: true, status: true } },
@@ -25,6 +26,38 @@ const opportunityInclude = {
 @Injectable()
 export class OpportunityService {
   constructor(private readonly prisma: PrismaService) {}
+
+  async findPublic(query: QueryPublicOpportunityDto) {
+    const { page = 1, limit = 6 } = query;
+    const where: Prisma.OpportunityWhereInput = {
+      status: OpportunityStatus.OPEN,
+      company: { status: CompanyStatus.VERIFIED },
+      OR: [
+        { applicationDeadline: null },
+        { applicationDeadline: { gte: new Date() } },
+      ],
+    };
+    const [data, total] = await this.prisma.$transaction([
+      this.prisma.opportunity.findMany({
+        where,
+        select: {
+          id: true,
+          title: true,
+          type: true,
+          description: true,
+          location: true,
+          vacancies: true,
+          applicationDeadline: true,
+          company: { select: { name: true } },
+        },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.prisma.opportunity.count({ where }),
+    ]);
+    return { data, total, page, limit };
+  }
 
   async create(user: CurrentUserData, dto: CreateOpportunityDto) {
     const companyId = getCompanyId(user);

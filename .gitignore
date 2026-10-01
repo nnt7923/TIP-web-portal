@@ -47,6 +47,7 @@ temp/
 .history/
 .codex/
 .agents/
+skills-lock.json
 .neon
 .neon-build/
 

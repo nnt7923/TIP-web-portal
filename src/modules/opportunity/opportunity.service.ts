@@ -3,7 +3,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { CompanyStatus, OpportunityStatus, Prisma, StudentStatus } from '@prisma/client';
+import {
+  CompanyStatus,
+  OpportunityStatus,
+  Prisma,
+  StudentStatus,
+} from '@prisma/client';
 import type { CurrentUserData } from '../../common/decorators/current-user.decorator';
 import { getCompanyId } from '../../common/utils/company-scope.util';
 import { handlePrismaError } from '../../common/utils/prisma-error.util';
@@ -12,6 +17,10 @@ import { PrismaService } from '../../database/prisma.service';
 import { CreateOpportunityDto } from './dto/create-opportunity.dto';
 import { QueryOpportunityDto } from './dto/query-opportunity.dto';
 import { UpdateOpportunityDto } from './dto/update-opportunity.dto';
+
+const opportunityInclude = {
+  company: { select: { id: true, name: true, logoUrl: true, status: true } },
+} satisfies Prisma.OpportunityInclude;
 
 @Injectable()
 export class OpportunityService {
@@ -28,6 +37,7 @@ export class OpportunityService {
     try {
       return await this.prisma.$transaction(async (transaction) => {
         const opportunity = await transaction.opportunity.create({
+          include: opportunityInclude,
           data: {
             companyId,
             title: dto.title.trim(),
@@ -63,24 +73,38 @@ export class OpportunityService {
       const where: Prisma.OpportunityWhereInput = {
         AND: [
           { status: OpportunityStatus.OPEN },
-          { OR: [{ applicationDeadline: null }, { applicationDeadline: { gte: new Date() } }] },
+          {
+            OR: [
+              { applicationDeadline: null },
+              { applicationDeadline: { gte: new Date() } },
+            ],
+          },
           { company: { status: CompanyStatus.VERIFIED } },
         ],
         ...(query.type && { type: query.type }),
-        ...(keyword && { AND: [
-          { status: OpportunityStatus.OPEN },
-          { OR: [{ applicationDeadline: null }, { applicationDeadline: { gte: new Date() } }] },
-          { company: { status: CompanyStatus.VERIFIED } },
-          { OR: [
-          { title: { contains: keyword, mode: 'insensitive' } },
-          { description: { contains: keyword, mode: 'insensitive' } },
-          { location: { contains: keyword, mode: 'insensitive' } },
-          ] },
-        ] }),
+        ...(keyword && {
+          AND: [
+            { status: OpportunityStatus.OPEN },
+            {
+              OR: [
+                { applicationDeadline: null },
+                { applicationDeadline: { gte: new Date() } },
+              ],
+            },
+            { company: { status: CompanyStatus.VERIFIED } },
+            {
+              OR: [
+                { title: { contains: keyword, mode: 'insensitive' } },
+                { description: { contains: keyword, mode: 'insensitive' } },
+                { location: { contains: keyword, mode: 'insensitive' } },
+              ],
+            },
+          ],
+        }),
       };
       return this.prisma.opportunity.findMany({
         where,
-        include: { company: { select: { id: true, name: true, logoUrl: true, status: true } } },
+        include: opportunityInclude,
         orderBy: { createdAt: 'desc' },
       });
     }
@@ -100,6 +124,7 @@ export class OpportunityService {
 
     return this.prisma.opportunity.findMany({
       where,
+      include: opportunityInclude,
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -110,12 +135,16 @@ export class OpportunityService {
         where: {
           id,
           status: OpportunityStatus.OPEN,
-          OR: [{ applicationDeadline: null }, { applicationDeadline: { gte: new Date() } }],
+          OR: [
+            { applicationDeadline: null },
+            { applicationDeadline: { gte: new Date() } },
+          ],
           company: { status: CompanyStatus.VERIFIED },
         },
-        include: { company: { select: { id: true, name: true, logoUrl: true, status: true } } },
+        include: opportunityInclude,
       });
-      if (!opportunity) throw new NotFoundException('Opportunity is not available');
+      if (!opportunity)
+        throw new NotFoundException('Opportunity is not available');
       return opportunity;
     }
     const companyId = getCompanyId(user);
@@ -160,6 +189,7 @@ export class OpportunityService {
         const opportunity = await transaction.opportunity.update({
           where: { id, companyId },
           data,
+          include: opportunityInclude,
         });
 
         await transaction.auditLog.create({
@@ -209,6 +239,7 @@ export class OpportunityService {
   private async findOneInCompany(id: string, companyId: string) {
     const opportunity = await this.prisma.opportunity.findFirst({
       where: { id, companyId },
+      include: opportunityInclude,
     });
 
     if (!opportunity) {

@@ -35,10 +35,10 @@ Trên PowerShell, có thể dùng lệnh sau thay cho `cp`:
 Copy-Item .env.example .env
 ```
 
-API chạy tại `http://localhost:3000/api`. Kiểm tra kết nối PostgreSQL và Redis:
+API chạy tại `http://localhost:3000`. Kiểm tra kết nối PostgreSQL và Redis:
 
 ```text
-GET http://localhost:3000/api/health
+GET http://localhost:3000/health
 ```
 
 ## Redis qua Docker (local development)
@@ -115,3 +115,7 @@ prisma/
 ```bash
 npm run db:migrate -- --name ten_migration
 ```
+
+## Direct mobile API clients
+
+See [Flutter and direct API clients](docs/mobile-api.md) for public endpoints, JWT headers, refresh and multipart uploads. Public and JWT-guarded routes support direct clients without X-Secret; internal routes still require the server-side origin secret.

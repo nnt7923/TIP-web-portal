@@ -1,21 +1,37 @@
-import { ValidationPipe } from '@nestjs/common';
-import { NestFactory } from '@nestjs/core';
+import { ValidationPipe, type Type } from '@nestjs/common';
+import { ModulesContainer, NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import { timingSafeEqual } from 'node:crypto';
 import type { NextFunction, Request, Response } from 'express';
 import { AppModule } from './app.module';
+import { createClientApiPolicy } from './common/client-api-policy';
 
 export async function createBackendApp(factory = NestFactory) {
   const app = await factory.create(AppModule);
 
-  // Apply server-to-server authentication consistently across hosting platforms.
-  // Health checks remain accessible to the hosting platform.
+  // Direct clients use public APIs or JWT-guarded routes. Internal routes still
+  // require the server-to-server secret; a bearer header alone never grants access.
+  const controllers = [...app.get(ModulesContainer).values()].flatMap(
+    (module) =>
+      [...module.controllers.values()].flatMap((controller) =>
+        controller.metatype ? [controller.metatype as Type<unknown>] : [],
+      ),
+  );
+  const isClientApi = createClientApiPolicy(controllers);
   const originSecret = app.get(ConfigService).get<string>('ORIGIN_SECRET');
   if (originSecret) {
     const expected = Buffer.from(originSecret);
     app.use((request: Request, response: Response, next: NextFunction) => {
-      if (request.method === 'GET' && request.path === '/health') return next();
+      if (isClientApi(request.method, request.path)) return next();
+      if (
+        request.method === 'OPTIONS' &&
+        isClientApi(
+          request.get('access-control-request-method') || '',
+          request.path,
+        )
+      )
+        return next();
       const supplied = request.get('x-secret');
       const actual = Buffer.from(supplied || '');
       if (

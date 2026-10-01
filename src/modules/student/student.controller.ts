@@ -106,7 +106,11 @@ export class StudentController {
     @Body() dto: CreateStudentDto,
     @UploadedFile(
       new ParseFilePipeBuilder()
-        .addFileTypeValidator({ fileType: 'application/pdf' })
+        .addFileTypeValidator({
+          fileType: 'application/pdf',
+          errorMessage:
+            'Không nhận diện được nội dung PDF của CV. Hãy xuất lại tệp PDF rồi thử lại.',
+        })
         .addMaxSizeValidator(UPLOAD_VALIDATOR_OPTIONS)
         .build({ fileIsRequired: false }),
     )
@@ -159,7 +163,11 @@ export class StudentController {
     @Body() dto: UpdateStudentProfileDto,
     @UploadedFile(
       new ParseFilePipeBuilder()
-        .addFileTypeValidator({ fileType: 'application/pdf' })
+        .addFileTypeValidator({
+          fileType: 'application/pdf',
+          errorMessage:
+            'Không nhận diện được nội dung PDF của CV. Hãy xuất lại tệp PDF rồi thử lại.',
+        })
         .addMaxSizeValidator(UPLOAD_VALIDATOR_OPTIONS)
         .build({ fileIsRequired: false }),
     )
@@ -216,7 +224,11 @@ export class StudentController {
     @Body() dto: UpdateStudentDto,
     @UploadedFile(
       new ParseFilePipeBuilder()
-        .addFileTypeValidator({ fileType: 'application/pdf' })
+        .addFileTypeValidator({
+          fileType: 'application/pdf',
+          errorMessage:
+            'Không nhận diện được nội dung PDF của CV. Hãy xuất lại tệp PDF rồi thử lại.',
+        })
         .addMaxSizeValidator(UPLOAD_VALIDATOR_OPTIONS)
         .build({ fileIsRequired: false }),
     )

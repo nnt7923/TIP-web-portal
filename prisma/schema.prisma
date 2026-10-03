@@ -42,10 +42,12 @@ model Account {
   lastLoginAt     DateTime?
   deletedAt       DateTime?
 
-  schoolUser  SchoolUser?
-  student     Student?
-  companyUser CompanyUser?
-  auditLogs   AuditLog[]
+  schoolUser         SchoolUser?
+  student            Student?
+  companyUser        CompanyUser?
+  auditLogs          AuditLog[]
+  enrollmentRequests StudentEnrollment[] @relation("EnrollmentApplicant")
+  enrollmentReviews  StudentEnrollment[] @relation("EnrollmentReviewer")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -55,21 +57,22 @@ model Account {
 }
 
 model University {
-  id                String             @id @default(uuid())
-  name              String
-  code              String             @unique
-  website           String?
-  address           String?
-  logoUrl           String?
-  logoPublicId      String?
-  status            UniversityStatus   @default(PENDING)
-  schoolUsers       SchoolUser[]
-  majors            Major[]
-  academicYears     AcademicYear[]
-  internshipPeriods InternshipPeriod[]
-  students          Student[]
-  applications      Application[]
-  placements        Placement[]
+  id                 String              @id @default(uuid())
+  name               String
+  code               String              @unique
+  website            String?
+  address            String?
+  logoUrl            String?
+  logoPublicId       String?
+  status             UniversityStatus    @default(PENDING)
+  enrollmentRequests StudentEnrollment[]
+  schoolUsers        SchoolUser[]
+  majors             Major[]
+  academicYears      AcademicYear[]
+  internshipPeriods  InternshipPeriod[]
+  students           Student[]
+  applications       Application[]
+  placements         Placement[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -115,7 +118,8 @@ model Major {
   name         String
   code         String?
 
-  students Student[]
+  students           Student[]
+  enrollmentRequests StudentEnrollment[]
 
   university University @relation(fields: [universityId], references: [id])
 
@@ -464,4 +468,34 @@ model AuditLog {
   @@index([actorId])
   @@index([entityType, entityId])
   @@index([createdAt])
+}
+
+enum StudentEnrollmentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+model StudentEnrollment {
+  id           String                  @id @default(uuid())
+  accountId    String
+  universityId String
+  majorId      String
+  studentCode  String
+  className    String
+  semester     Int
+  status       StudentEnrollmentStatus @default(PENDING)
+  reason       String?
+  reviewedById String?
+  reviewedAt   DateTime?
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @updatedAt
+  account      Account                 @relation("EnrollmentApplicant", fields: [accountId], references: [id], onDelete: Restrict)
+  reviewer     Account?                @relation("EnrollmentReviewer", fields: [reviewedById], references: [id], onDelete: Restrict)
+  university   University              @relation(fields: [universityId], references: [id], onDelete: Restrict)
+  major        Major                   @relation(fields: [majorId], references: [id], onDelete: Restrict)
+
+  @@index([universityId, status, createdAt])
+  @@index([accountId, createdAt])
 }

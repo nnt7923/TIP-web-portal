@@ -410,25 +410,21 @@ export class AuthService {
       throw error;
     }
 
+    let otpSent = true;
     try {
       await this.sendOtp(
         account.id,
         account.email,
         OtpPurpose.EmailVerification,
       );
-    } catch (error) {
-      await this.prisma.$transaction([
-        this.prisma.account.delete({ where: { id: account.id } }),
-        this.prisma.company.delete({
-          where: { id: account.companyUser!.companyId },
-        }),
-      ]);
-      throw error;
+    } catch {
+      otpSent = false;
     }
 
     return {
       message:
         'Company registration submitted. Verify the email and wait for System Admin approval.',
+      otpSent,
       account,
     };
   }

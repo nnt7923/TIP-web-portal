@@ -52,3 +52,7 @@ The empty login body should return 400 validation errors, not origin-secret 401.
 `GET /auth/me` without a token or with a forged token must still return 401.
 Swagger without `X-Secret` remains blocked. Validate web login and mobile login,
 refresh, profile access and role denial after deploying.
+
+## Rate limiting behind the web frontend
+
+On Vercel, direct clients are limited using the IP from the platform-overwritten `x-forwarded-for` header. The Next.js frontend relays that visitor IP in `x-tip-client-ip` on each backend request (including token refresh). The backend accepts this relay only when `x-secret` matches `ORIGIN_SECRET`. Keep frontend `BACKEND_ORIGIN_SECRET` and backend `ORIGIN_SECRET` synchronized. Flutter must not send either secret or relay header. Outside Vercel, untrusted forwarding headers are ignored and the backend uses the socket/request IP.

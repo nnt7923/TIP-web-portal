@@ -188,55 +188,91 @@ export class OpportunityService {
 
   async update(user: CurrentUserData, id: string, dto: UpdateOpportunityDto) {
     const companyId = getCompanyId(user);
-    const currentOpportunity = await this.findOneInCompany(id, companyId);
-    const applicationDeadline =
-      dto.applicationDeadline === undefined
-        ? currentOpportunity.applicationDeadline
-        : dto.applicationDeadline === null
-          ? null
-          : new Date(dto.applicationDeadline);
-    const status = dto.status ?? currentOpportunity.status;
-
-    this.assertDeadlineIsValid(applicationDeadline, status);
-
-    const data: Prisma.OpportunityUpdateInput = {
-      ...(dto.title !== undefined && { title: dto.title.trim() }),
-      ...(dto.type !== undefined && { type: dto.type }),
-      ...(dto.description !== undefined && {
-        description: dto.description.trim(),
-      }),
-      ...(dto.location !== undefined && {
-        location: normalizeOptionalText(dto.location ?? undefined) || null,
-      }),
-      ...(dto.vacancies !== undefined && { vacancies: dto.vacancies }),
-      ...(dto.applicationDeadline !== undefined && { applicationDeadline }),
-      ...(dto.status !== undefined && { status: dto.status }),
-    };
-
-    if (Object.keys(data).length === 0) {
-      throw new BadRequestException('At least one field must be updated');
-    }
-
     try {
-      return await this.prisma.$transaction(async (transaction) => {
-        const opportunity = await transaction.opportunity.update({
-          where: { id, companyId },
-          data,
-          include: opportunityInclude,
-        });
+      return await this.prisma.$transaction(
+        async (transaction) => {
+          const currentOpportunity = await transaction.opportunity.findFirst({
+            where: { id, companyId },
+          });
+          if (!currentOpportunity)
+            throw new NotFoundException(
+              'Opportunity was not found in your company',
+            );
+          const applicationDeadline =
+            dto.applicationDeadline === undefined
+              ? currentOpportunity.applicationDeadline
+              : dto.applicationDeadline === null
+                ? null
+                : new Date(dto.applicationDeadline);
+          const status = dto.status ?? currentOpportunity.status;
 
-        await transaction.auditLog.create({
-          data: {
-            actorId: user.id,
-            action: 'OPPORTUNITY_UPDATED',
-            entityType: 'Opportunity',
-            entityId: id,
-            metadata: { changedFields: Object.keys(data), companyId },
-          },
-        });
+          this.assertDeadlineIsValid(applicationDeadline, status);
 
-        return opportunity;
-      });
+          const data: Prisma.OpportunityUpdateInput = {
+            ...(dto.title !== undefined && { title: dto.title.trim() }),
+            ...(dto.type !== undefined && { type: dto.type }),
+            ...(dto.description !== undefined && {
+              description: dto.description.trim(),
+            }),
+            ...(dto.location !== undefined && {
+              location:
+                normalizeOptionalText(dto.location ?? undefined) || null,
+            }),
+            ...(dto.vacancies !== undefined && { vacancies: dto.vacancies }),
+            ...(dto.applicationDeadline !== undefined && {
+              applicationDeadline,
+            }),
+            ...(dto.status !== undefined && { status: dto.status }),
+          };
+
+          if (Object.keys(data).length === 0) {
+            throw new BadRequestException('At least one field must be updated');
+          }
+
+          if (
+            (dto.type !== undefined && dto.type !== currentOpportunity.type) ||
+            (dto.status !== undefined &&
+              dto.status !== OpportunityStatus.OPEN &&
+              dto.status !== OpportunityStatus.CLOSED)
+          ) {
+            const linked = await transaction.placement.findFirst({
+              where: { opportunityId: id, status: { not: 'CANCELLED' } },
+              select: { id: true },
+            });
+            if (linked)
+              throw new BadRequestException(
+                'Cannot change the type or withdraw an opportunity linked to a non-cancelled placement',
+              );
+          }
+          if (dto.vacancies !== undefined && dto.vacancies !== null) {
+            const accepted = await transaction.application.count({
+              where: { opportunityId: id, status: 'ACCEPTED' },
+            });
+            if (dto.vacancies < accepted)
+              throw new BadRequestException(
+                'Vacancies cannot be lower than the number of accepted applications',
+              );
+          }
+          const opportunity = await transaction.opportunity.update({
+            where: { id, companyId },
+            data,
+            include: opportunityInclude,
+          });
+
+          await transaction.auditLog.create({
+            data: {
+              actorId: user.id,
+              action: 'OPPORTUNITY_UPDATED',
+              entityType: 'Opportunity',
+              entityId: id,
+              metadata: { changedFields: Object.keys(data), companyId },
+            },
+          });
+
+          return opportunity;
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      );
     } catch (error) {
       handlePrismaError(error, {
         notFound: `Opportunity with id "${id}" was not found`,

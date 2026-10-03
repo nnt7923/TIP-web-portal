@@ -9,10 +9,15 @@ import { createHash } from 'node:crypto';
 import type { Request } from 'express';
 import { RedisService } from '../../../redis/redis.service';
 import { RATE_LIMIT } from '../redis-scripts';
+import { ConfigService } from '@nestjs/config';
+import { clientIp } from '../../../common/client-ip';
 
 @Injectable()
 export class AuthRateLimitGuard implements CanActivate {
-  constructor(private readonly redis: RedisService) {}
+  constructor(
+    private readonly redis: RedisService,
+    private readonly config: ConfigService,
+  ) {}
 
   /** Giới hạn theo IP và hành động; không tin header X-Forwarded-For tự gửi. */
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -27,7 +32,7 @@ export class AuthRateLimitGuard implements CanActivate {
     ].includes(action)
       ? 5
       : 30;
-    const ip = request.ip ?? request.socket.remoteAddress ?? 'unknown';
+    const ip = clientIp(request, this.config.get<string>('ORIGIN_SECRET'));
     const key = createHash('sha256').update(`${action}:${ip}`).digest('hex');
     const count = await this.redis.connection.eval(
       RATE_LIMIT,

@@ -12,6 +12,7 @@ import {
   SchoolUserStatus,
   UniversityStatus,
 } from '@prisma/client';
+import { handlePrismaError } from '../../common/utils/prisma-error.util';
 import { PrismaService } from '../../database/prisma.service';
 import {
   assertPendingStatusTransition,
@@ -114,57 +115,62 @@ export class SystemAdminService {
       throw new BadRequestException('You cannot disable your own account');
     }
 
-    const updated = await this.prisma.$transaction(async (transaction) => {
-      const current = await transaction.account.findUnique({
-        where: { id: accountId },
-        select: { id: true, globalRole: true, status: true },
-      });
+    const updated = await this.prisma
+      .$transaction(
+        async (transaction) => {
+          const current = await transaction.account.findUnique({
+            where: { id: accountId },
+            select: { id: true, globalRole: true, status: true },
+          });
 
-      if (!current) {
-        throw new NotFoundException(
-          `Account with id "${accountId}" was not found`,
-        );
-      }
+          if (!current) {
+            throw new NotFoundException(
+              `Account with id "${accountId}" was not found`,
+            );
+          }
 
-      if (
-        current.globalRole === GlobalRole.SYSTEM_ADMIN &&
-        current.status === AccountStatus.ACTIVE &&
-        dto.status !== AccountStatus.ACTIVE
-      ) {
-        const activeAdminCount = await transaction.account.count({
-          where: {
-            globalRole: GlobalRole.SYSTEM_ADMIN,
-            status: AccountStatus.ACTIVE,
-          },
-        });
+          if (
+            current.globalRole === GlobalRole.SYSTEM_ADMIN &&
+            current.status === AccountStatus.ACTIVE &&
+            dto.status !== AccountStatus.ACTIVE
+          ) {
+            const activeAdminCount = await transaction.account.count({
+              where: {
+                globalRole: GlobalRole.SYSTEM_ADMIN,
+                status: AccountStatus.ACTIVE,
+              },
+            });
 
-        if (activeAdminCount <= 1) {
-          throw new ConflictException(
-            'The last active system admin cannot be disabled',
-          );
-        }
-      }
+            if (activeAdminCount <= 1) {
+              throw new ConflictException(
+                'The last active system admin cannot be disabled',
+              );
+            }
+          }
 
-      assertPendingStatusTransition(current.status, dto.status);
-      const account = await transaction.account.update({
-        where: { id: accountId, status: current.status },
-        data: { status: dto.status },
-        select: accountSelect,
-      });
+          assertPendingStatusTransition(current.status, dto.status);
+          const account = await transaction.account.update({
+            where: { id: accountId, status: current.status },
+            data: { status: dto.status },
+            select: accountSelect,
+          });
 
-      await transaction.auditLog.create({
-        data: {
-          actorId,
-          action: 'ACCOUNT_STATUS_UPDATED',
-          entityType: 'Account',
-          entityId: accountId,
-          metadata: { from: current.status, to: dto.status },
-          ipAddress,
+          await transaction.auditLog.create({
+            data: {
+              actorId,
+              action: 'ACCOUNT_STATUS_UPDATED',
+              entityType: 'Account',
+              entityId: accountId,
+              metadata: { from: current.status, to: dto.status },
+              ipAddress,
+            },
+          });
+
+          return account;
         },
-      });
-
-      return account;
-    });
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      )
+      .catch((error: unknown) => handlePrismaError(error));
 
     if (dto.status !== AccountStatus.ACTIVE) {
       await this.authService.logoutAll(accountId);

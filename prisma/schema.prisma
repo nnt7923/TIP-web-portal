@@ -48,6 +48,7 @@ model Account {
   auditLogs          AuditLog[]
   enrollmentRequests StudentEnrollment[] @relation("EnrollmentApplicant")
   enrollmentReviews  StudentEnrollment[] @relation("EnrollmentReviewer")
+  notifications      Notification[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -450,6 +451,25 @@ model Placement {
   @@index([universitySupervisorId])
   @@index([companySupervisorId])
   @@index([status])
+}
+
+model Notification {
+  id                 String   @id @default(uuid())
+  recipientAccountId String
+  type               String
+  title              String
+  body               String
+  entityType         String
+  entityId           String
+  eventId            String
+  createdAt          DateTime @default(now())
+  readAt             DateTime?
+
+  recipient Account @relation(fields: [recipientAccountId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, recipientAccountId])
+  @@index([recipientAccountId, createdAt, id])
+  @@index([recipientAccountId, readAt, createdAt, id])
 }
 
 model AuditLog {

@@ -1,3 +1,4 @@
+import { NotificationEventsService } from '../notifications/notification-events.service';
 import {
   BadRequestException,
   ConflictException,
@@ -24,7 +25,10 @@ const include = {
 
 @Injectable()
 export class EnrollmentService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationEvents: NotificationEventsService,
+  ) {}
 
   universities(query: EnrollmentQueryDto) {
     const keyword = query.keyword?.trim();
@@ -279,6 +283,7 @@ export class EnrollmentService {
     await tx.auditLog.create({
       data: { actorId, entityId, action, entityType: 'StudentEnrollment' },
     });
+    await this.notificationEvents.enrollment(tx, actorId, entityId, action);
   }
 
   private async mutate<T>(

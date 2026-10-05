@@ -1,5 +1,7 @@
 # TIP Web Portal API
 
+Thông báo nghiệp vụ: xem [Notifications: API, sự kiện và triển khai](docs/notifications.md).
+
 Backend API dùng **NestJS 11**, **PostgreSQL**, **Prisma 6**, **Redis** và **Cloudinary**.
 
 ## Yêu cầu

@@ -1,3 +1,4 @@
+import { NotificationEventsService } from '../notifications/notification-events.service';
 import {
   BadRequestException,
   ConflictException,
@@ -137,6 +138,7 @@ export class AuthService {
     private readonly configService: ConfigService,
     private readonly emailService: EmailService,
     private readonly redisService: RedisService,
+    private readonly notificationEvents: NotificationEventsService,
   ) {}
 
   async login(loginDto: LoginDto): Promise<AuthTokens> {
@@ -452,9 +454,13 @@ export class AuthService {
     );
 
     if (purpose === OtpPurpose.EmailVerification) {
-      await this.prisma.account.update({
-        where: { id: account.id },
-        data: { emailVerifiedAt: new Date() },
+      await this.prisma.$transaction(async (tx) => {
+        const verified = await tx.account.updateMany({
+          where: { id: account.id, emailVerifiedAt: null },
+          data: { emailVerifiedAt: new Date() },
+        });
+        if (verified.count === 1)
+          await this.notificationEvents.pendingProfile(tx, account.id);
       });
 
       return {

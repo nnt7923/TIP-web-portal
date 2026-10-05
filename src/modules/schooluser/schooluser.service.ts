@@ -1,3 +1,4 @@
+import { NotificationEventsService } from '../notifications/notification-events.service';
 import {
   BadRequestException,
   ForbiddenException,
@@ -38,6 +39,7 @@ export class SchoolUserService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auth: AuthService,
+    private readonly notificationEvents: NotificationEventsService,
   ) {}
 
   async create(user: CurrentUserData, dto: CreateSchoolUserDto) {
@@ -108,19 +110,30 @@ export class SchoolUserService {
       }),
     };
     try {
-      const updated = await this.prisma.schoolUser.update({
-        where: {
-          id,
-          ...(dto.status !== undefined && { status: target.status }),
-          universityId: target.universityId,
-          account: { globalRole: GlobalRole.USER },
-        },
-        data: {
-          ...(dto.role !== undefined && { role: dto.role }),
-          ...(dto.status !== undefined && { status: dto.status }),
-          account: { update: accountData },
-        },
-        include: { account: { select: safeAccountSelect }, university: true },
+      const updated = await this.prisma.$transaction(async (tx) => {
+        const profile = await tx.schoolUser.update({
+          where: {
+            id,
+            ...(dto.status !== undefined && { status: target.status }),
+            universityId: target.universityId,
+            account: { globalRole: GlobalRole.USER },
+          },
+          data: {
+            ...(dto.role !== undefined && { role: dto.role }),
+            ...(dto.status !== undefined && { status: dto.status }),
+            account: { update: accountData },
+          },
+          include: { account: { select: safeAccountSelect }, university: true },
+        });
+        if (target.status === 'PENDING' && profile.status === 'ACTIVE') {
+          await this.notificationEvents.profileApproved(
+            tx,
+            user.id,
+            target.accountId,
+            id,
+          );
+        }
+        return profile;
       });
       if (
         emailChanged ||

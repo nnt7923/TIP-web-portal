@@ -21,6 +21,7 @@ import { ApplicationModule } from './modules/application/application.module';
 import { PlacementModule } from './modules/placement/placement.module';
 import { LookupsModule } from './modules/lookups/lookups.module';
 import { EnrollmentModule } from './modules/student-enrollment/enrollment.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -49,6 +50,7 @@ import { EnrollmentModule } from './modules/student-enrollment/enrollment.module
     PlacementModule,
     LookupsModule,
     EnrollmentModule,
+    NotificationsModule,
   ],
 })
 export class AppModule {}

@@ -1,3 +1,4 @@
+import { NotificationEventsService } from '../notifications/notification-events.service';
 import {
   BadRequestException,
   ForbiddenException,
@@ -40,6 +41,7 @@ export class CompanyUserService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auth: AuthService,
+    private readonly notificationEvents: NotificationEventsService,
   ) {}
 
   async create(user: CurrentUserData, dto: CreateCompanyUserDto) {
@@ -198,6 +200,14 @@ export class CompanyUserService {
           },
         });
 
+        if (target.status === 'PENDING' && companyUser.status === 'ACTIVE') {
+          await this.notificationEvents.profileApproved(
+            transaction,
+            user.id,
+            target.accountId,
+            id,
+          );
+        }
         return companyUser;
       });
 

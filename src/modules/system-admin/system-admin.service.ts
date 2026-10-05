@@ -1,3 +1,4 @@
+import { NotificationEventsService } from '../notifications/notification-events.service';
 import {
   BadRequestException,
   ConflictException,
@@ -70,6 +71,7 @@ export class SystemAdminService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly authService: AuthService,
+    private readonly notificationEvents: NotificationEventsService,
   ) {}
 
   findAllAccounts(query: QueryAccountDto) {
@@ -258,6 +260,12 @@ export class SystemAdminService {
             ipAddress,
           },
         });
+        await this.notificationEvents.profileApproved(
+          tx,
+          actorId,
+          accountId,
+          profile.id,
+        );
         return { message: 'University verified and administrator approved.' };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },

@@ -1,3 +1,4 @@
+import { NotificationEventsService } from '../notifications/notification-events.service';
 import {
   BadRequestException,
   ConflictException,
@@ -61,7 +62,10 @@ const pendingStatuses: ApplicationStatus[] = [
 
 @Injectable()
 export class ApplicationService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationEvents: NotificationEventsService,
+  ) {}
 
   /** Sinh viên nộp đơn bằng hồ sơ của mình; trường được lấy từ database. */
   async create(user: CurrentUserData, dto: CreateApplicationDto) {
@@ -410,7 +414,7 @@ export class ApplicationService {
     action: string,
     metadata: Prisma.InputJsonObject,
   ): Promise<void> {
-    await transaction.auditLog.create({
+    const audit = await transaction.auditLog.create({
       data: {
         actorId,
         action,
@@ -419,5 +423,12 @@ export class ApplicationService {
         metadata,
       },
     });
+    await this.notificationEvents.application(
+      transaction,
+      actorId,
+      id,
+      action,
+      audit.id,
+    );
   }
 }

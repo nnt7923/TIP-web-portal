@@ -1,3 +1,4 @@
+import { NotificationEventsService } from '../notifications/notification-events.service';
 import { getUniversityId } from '../../common/utils/university-scope.util';
 import {
   BadRequestException,
@@ -39,7 +40,10 @@ const registrationSelect = {
 
 @Injectable()
 export class InternshipPeriodService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationEvents: NotificationEventsService,
+  ) {}
 
   async create(currentUser: CurrentUserData, dto: CreateInternShipPeriodDto) {
     const universityId = this.getUniversityId(currentUser);
@@ -327,6 +331,13 @@ export class InternshipPeriodService {
           metadata: { internshipPeriodId: id, studentId: student.id },
         },
       });
+      await this.notificationEvents.internshipRegistration(
+        tx,
+        user.id,
+        student.id,
+        period.id,
+        registration.id,
+      );
       return registration;
     }, 'This student is already registered for this period');
   }

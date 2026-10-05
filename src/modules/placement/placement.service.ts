@@ -1,3 +1,4 @@
+import { NotificationEventsService } from '../notifications/notification-events.service';
 import {
   BadRequestException,
   ConflictException,
@@ -61,7 +62,10 @@ const transitions: Record<PlacementStatus, PlacementStatus[]> = {
 
 @Injectable()
 export class PlacementService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationEvents: NotificationEventsService,
+  ) {}
 
   /** Trường tạo hồ sơ PENDING từ đơn ACCEPTED hoặc tạo trực tiếp cho sinh viên của mình. */
   async create(user: CurrentUserData, dto: CreatePlacementDto) {
@@ -90,6 +94,7 @@ export class PlacementService {
         universityId,
         applicationId: placement.applicationId,
       });
+      await this.notificationEvents.placement(tx, user.id, placement);
       return placement;
     });
   }
@@ -592,7 +597,9 @@ export class PlacementService {
       changedFields: Object.keys(data),
       previousStatus: current.status,
     });
-    return this.findInScope(tx, current.id, scope);
+    const next = await this.findInScope(tx, current.id, scope);
+    await this.notificationEvents.placement(tx, actorId, next, current);
+    return next;
   }
 
   /** Dùng chung phạm vi truy cập cho thao tác đọc và ghi. */

@@ -50,7 +50,7 @@ export class CompanyUserService {
     await this.assertCompanyExists(companyId);
 
     try {
-      return await this.prisma.$transaction(async (transaction) => {
+      return await this.notificationEvents.transaction(async (transaction) => {
         const account = await transaction.account.create({
           data: {
             fullName: dto.fullName.trim(),
@@ -175,41 +175,43 @@ export class CompanyUserService {
     }
 
     try {
-      const updated = await this.prisma.$transaction(async (transaction) => {
-        const companyUser = await transaction.companyUser.update({
-          where: {
-            id,
-            ...(dto.status !== undefined && { status: target.status }),
-            companyId: target.companyId,
-            account: { globalRole: GlobalRole.USER },
-          },
-          data,
-          include: {
-            account: { select: safeAccountSelect },
-            company: true,
-          },
-        });
+      const updated = await this.notificationEvents.transaction(
+        async (transaction) => {
+          const companyUser = await transaction.companyUser.update({
+            where: {
+              id,
+              ...(dto.status !== undefined && { status: target.status }),
+              companyId: target.companyId,
+              account: { globalRole: GlobalRole.USER },
+            },
+            data,
+            include: {
+              account: { select: safeAccountSelect },
+              company: true,
+            },
+          });
 
-        await transaction.auditLog.create({
-          data: {
-            actorId: user.id,
-            action: 'COMPANY_USER_UPDATED',
-            entityType: 'CompanyUser',
-            entityId: id,
-            metadata: { changedFields: Object.keys(dto) },
-          },
-        });
+          await transaction.auditLog.create({
+            data: {
+              actorId: user.id,
+              action: 'COMPANY_USER_UPDATED',
+              entityType: 'CompanyUser',
+              entityId: id,
+              metadata: { changedFields: Object.keys(dto) },
+            },
+          });
 
-        if (target.status === 'PENDING' && companyUser.status === 'ACTIVE') {
-          await this.notificationEvents.profileApproved(
-            transaction,
-            user.id,
-            target.accountId,
-            id,
-          );
-        }
-        return companyUser;
-      });
+          if (target.status === 'PENDING' && companyUser.status === 'ACTIVE') {
+            await this.notificationEvents.profileApproved(
+              transaction,
+              user.id,
+              target.accountId,
+              id,
+            );
+          }
+          return companyUser;
+        },
+      );
 
       if (
         emailChanged ||
@@ -244,7 +246,7 @@ export class CompanyUserService {
     this.assertManageTarget(user, target);
 
     try {
-      await this.prisma.$transaction(async (transaction) => {
+      await this.notificationEvents.transaction(async (transaction) => {
         await transaction.companyUser.delete({
           where: {
             id,

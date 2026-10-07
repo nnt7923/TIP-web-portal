@@ -48,3 +48,8 @@ export class NotificationPageDto {
 export class NotificationCountDto {
   @ApiProperty() count: number;
 }
+
+export class NotificationTicketDto {
+  @ApiProperty() ticket: string;
+  @ApiProperty({ format: 'date-time' }) expiresAt: string;
+}

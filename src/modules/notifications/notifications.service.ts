@@ -1,8 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../../database/prisma.service';
 import { QueryNotificationsDto } from './notifications.dto';
+import { NotificationDeliveryService } from './notification-delivery.service';
 
 const notificationSelect = {
   id: true,
@@ -28,7 +29,35 @@ export type NotificationEvent = {
 
 @Injectable()
 export class NotificationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly pending = new WeakMap<
+    Prisma.TransactionClient,
+    Set<string>
+  >();
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly delivery?: NotificationDeliveryService,
+  ) {}
+
+  async transaction<T>(
+    work: (tx: Prisma.TransactionClient) => Promise<T>,
+    options?: {
+      isolationLevel?: Prisma.TransactionIsolationLevel;
+      maxWait?: number;
+      timeout?: number;
+    },
+  ): Promise<T> {
+    const recipients = new Set<string>();
+    const result = await this.prisma.$transaction(async (tx) => {
+      this.pending.set(tx, recipients);
+      try {
+        return await work(tx);
+      } finally {
+        this.pending.delete(tx);
+      }
+    }, options);
+    await this.delivery?.publish([...recipients], 'created');
+    return result;
+  }
 
   // Only accepts a transaction client: the business mutation and its notifications commit together.
   async emit(tx: Prisma.TransactionClient, event: NotificationEvent) {
@@ -44,7 +73,8 @@ export class NotificationsService {
     });
     if (!recipients.length) return;
     const eventId = event.eventId ?? randomUUID();
-    await tx.notification.createMany({
+    const inserted = await tx.notification.createManyAndReturn({
+      select: { recipientAccountId: true },
       data: [...new Set(recipients.map(({ id }) => id))].map(
         (recipientAccountId) => ({
           recipientAccountId,
@@ -58,6 +88,8 @@ export class NotificationsService {
       ),
       skipDuplicates: true,
     });
+    const pending = this.pending.get(tx);
+    for (const row of inserted) pending?.add(row.recipientAccountId);
   }
 
   async list(accountId: string, query: QueryNotificationsDto) {
@@ -91,7 +123,7 @@ export class NotificationsService {
   }
 
   async read(accountId: string, id: string) {
-    await this.prisma.notification.updateMany({
+    const updated = await this.prisma.notification.updateMany({
       where: { id, recipientAccountId: accountId, readAt: null },
       data: { readAt: new Date() },
     });
@@ -100,12 +132,13 @@ export class NotificationsService {
       select: notificationSelect,
     });
     if (!notification) throw new NotFoundException('Không tìm thấy thông báo.');
+    if (updated.count) await this.delivery?.publish([accountId], 'read');
     return notification;
   }
 
   async readAll(accountId: string, cutoff: Date) {
     // One UPDATE uses a statement snapshot; notifications arriving afterwards stay unread.
-    return this.prisma.notification.updateMany({
+    const updated = await this.prisma.notification.updateMany({
       where: {
         recipientAccountId: accountId,
         readAt: null,
@@ -113,5 +146,7 @@ export class NotificationsService {
       },
       data: { readAt: cutoff },
     });
+    if (updated.count) await this.delivery?.publish([accountId], 'read-all');
+    return updated;
   }
 }

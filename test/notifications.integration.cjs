@@ -1,5 +1,5 @@
 // Run only against the isolated notification branch; never falls back to .env.
-require('dotenv').config({ path: '.env.notifications.local', override: true, quiet: true });
+require('dotenv').config({ path: '.env.realtime-test.local', override: true, quiet: true });
 require('reflect-metadata');
 const assert = require('node:assert/strict');
 const { randomUUID } = require('node:crypto');
@@ -7,6 +7,7 @@ const { PrismaClient } = require('@prisma/client');
 const { Test } = require('@nestjs/testing');
 const { ValidationPipe, UnauthorizedException } = require('@nestjs/common');
 const request = require('supertest');
+const { NotificationTicketService } = require('../dist/modules/notifications/notification-ticket.service');
 const { NotificationsService } = require('../dist/modules/notifications/notifications.service');
 const { NotificationEventsService } = require('../dist/modules/notifications/notification-events.service');
 const { NotificationsController } = require('../dist/modules/notifications/notifications.controller');
@@ -21,7 +22,7 @@ const { SystemAdminService } = require('../dist/modules/system-admin/system-admi
 const { AuthService } = require('../dist/modules/auth/auth.service');
 const { createClientApiPolicy } = require('../dist/common/client-api-policy');
 const endpoint = new URL(process.env.DATABASE_URL || 'http://missing').hostname;
-assert.equal(endpoint, 'ep-frosty-grass-b5tfrrug.c-7.us-east-2.aws.neon.tech', 'Use the isolated notification test branch');
+assert.equal(endpoint, 'ep-frosty-hill-b5o5lzl1.c-7.us-east-2.aws.neon.tech', 'Use the isolated notification test branch');
 const prisma = new PrismaClient({ transactionOptions: { timeout: 60000, maxWait: 15000 } });
 const notifications = new NotificationsService(prisma);
 const events = new NotificationEventsService(notifications);
@@ -54,7 +55,7 @@ async function main() {
   const sys = await account('-system', { globalRole: 'SYSTEM_ADMIN' });
   const personal = await account('-personal');
   const identities = { personal, admin, otherAdmin };
-  const module = await Test.createTestingModule({ controllers: [NotificationsController], providers: [{ provide: NotificationsService, useValue: notifications }] })
+  const module = await Test.createTestingModule({ controllers: [NotificationsController], providers: [{ provide: NotificationsService, useValue: notifications }, { provide: NotificationTicketService, useValue: {} }] })
     .overrideGuard(JwtAuthGuard).useValue({ canActivate(context) {
       const req = context.switchToHttp().getRequest(); req.user = identities[req.headers.authorization];
       if (!req.user) throw new UnauthorizedException(); return true;
@@ -157,9 +158,9 @@ async function main() {
   const rollbackEvent = { ...event, eventId: randomUUID() };
   await assert.rejects(prisma.$transaction(async tx => { await notifications.emit(tx, rollbackEvent); throw new Error('Rollback'); }));
   check(await count(student, { eventId: rollbackEvent.eventId }), 0);
-  const failing = new EnrollmentService(prisma, { enrollment: async () => { throw new Error('Notification write failed'); } });
+  const failing = new EnrollmentService(prisma, { transaction: notifications.transaction.bind(notifications), enrollment: async () => { throw new Error('Notification write failed'); } });
   const rollbackUser = await account('-rollback');
-  await assert.rejects(failing.submit(rollbackUser, { ...input, studentCode: marker + '-rollback' }));
+  await assert.rejects(failing.submit(rollbackUser, { ...input, studentCode: marker + '-rollback' }), /Notification write failed/);
   check(await prisma.studentEnrollment.count({ where: { accountId: rollbackUser.id } }), 0);
   const cutoff = new Date();
   await prisma.notification.create({ data: { recipientAccountId: student.id, eventId: randomUUID(), type: 'TEST', title: 'New', body: 'New', entityType: 'AccountProfile', entityId: student.id, createdAt: new Date(cutoff.getTime() + 1000) } });

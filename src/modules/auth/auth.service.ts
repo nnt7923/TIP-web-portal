@@ -454,7 +454,7 @@ export class AuthService {
     );
 
     if (purpose === OtpPurpose.EmailVerification) {
-      await this.prisma.$transaction(async (tx) => {
+      await this.notificationEvents.transaction(async (tx) => {
         const verified = await tx.account.updateMany({
           where: { id: account.id, emailVerifiedAt: null },
           data: { emailVerifiedAt: new Date() },
@@ -930,7 +930,7 @@ export class AuthService {
       REMOVE_ALL_SESSIONS,
       1,
       accountSessionsKey,
-      'auth:session:',
+      `${this.configService.get<string>('REDIS_KEY_PREFIX', '')}auth:session:`,
     );
   }
 

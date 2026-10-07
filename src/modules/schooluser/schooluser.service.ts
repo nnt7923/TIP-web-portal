@@ -110,7 +110,7 @@ export class SchoolUserService {
       }),
     };
     try {
-      const updated = await this.prisma.$transaction(async (tx) => {
+      const updated = await this.notificationEvents.transaction(async (tx) => {
         const profile = await tx.schoolUser.update({
           where: {
             id,

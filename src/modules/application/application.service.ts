@@ -72,7 +72,7 @@ export class ApplicationService {
     const profile = this.getStudent(user);
 
     try {
-      return await this.prisma.$transaction(
+      return await this.notificationEvents.transaction(
         async (transaction) => {
           const student = await transaction.student.findFirst({
             where: {
@@ -228,7 +228,7 @@ export class ApplicationService {
     }
 
     try {
-      return await this.prisma.$transaction(
+      return await this.notificationEvents.transaction(
         async (transaction) => {
           const current = await this.findInScope(transaction, id, scope);
           this.assertPending(current.status);
@@ -304,7 +304,7 @@ export class ApplicationService {
     };
 
     try {
-      return await this.prisma.$transaction(
+      return await this.notificationEvents.transaction(
         async (transaction) => {
           const current = await this.findInScope(transaction, id, scope);
           this.assertPending(current.status);

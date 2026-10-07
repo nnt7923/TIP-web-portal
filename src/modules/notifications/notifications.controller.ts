@@ -4,6 +4,9 @@ import {
   Param,
   ParseUUIDPipe,
   Patch,
+  Post,
+  Headers,
+  HttpCode,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -19,16 +22,34 @@ import {
   NotificationCountDto,
   NotificationDto,
   NotificationPageDto,
+  NotificationTicketDto,
   QueryNotificationsDto,
 } from './notifications.dto';
 import { NotificationsService } from './notifications.service';
+import { NotificationTicketService } from './notification-ticket.service';
 
 @ApiTags('notifications')
 @ApiBearerAuth('access-token')
 @UseGuards(JwtAuthGuard)
 @Controller('notifications')
 export class NotificationsController {
-  constructor(private readonly notifications: NotificationsService) {}
+  constructor(
+    private readonly notifications: NotificationsService,
+    private readonly tickets: NotificationTicketService,
+  ) {}
+
+  @Post('socket-ticket')
+  @HttpCode(200)
+  @ApiOkResponse({ type: NotificationTicketDto })
+  @ApiOperation({
+    summary: 'Issue a single-use notification WebSocket ticket (60 seconds)',
+  })
+  socketTicket(
+    @CurrentUser('id') accountId: string,
+    @Headers('authorization') authorization?: string,
+  ) {
+    return this.tickets.issue(authorization, accountId);
+  }
 
   @Get()
   @ApiOperation({ summary: 'List my notifications' })

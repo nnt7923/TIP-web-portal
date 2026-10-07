@@ -202,7 +202,7 @@ export class SystemAdminService {
     accountId: string,
     ipAddress?: string,
   ) {
-    return this.prisma.$transaction(
+    return this.notificationEvents.transaction(
       async (tx) => {
         const account = await tx.account.findUnique({
           where: { id: accountId },
@@ -296,7 +296,7 @@ export class SystemAdminService {
     dto: UpdateUniversityStatusDto,
     ipAddress?: string,
   ) {
-    return this.prisma.$transaction(async (transaction) => {
+    return this.notificationEvents.transaction(async (transaction) => {
       const current = await transaction.university.findUnique({
         where: { id: universityId },
         select: { status: true },

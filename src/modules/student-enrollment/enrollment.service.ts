@@ -290,7 +290,7 @@ export class EnrollmentService {
     work: (tx: Prisma.TransactionClient) => Promise<T>,
   ): Promise<T> {
     try {
-      return await this.prisma.$transaction(work, {
+      return await this.notificationEvents.transaction(work, {
         isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
       });
     } catch (error) {

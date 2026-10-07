@@ -6,6 +6,8 @@ import { timingSafeEqual } from 'node:crypto';
 import type { NextFunction, Request, Response } from 'express';
 import { AppModule } from './app.module';
 import { createClientApiPolicy } from './common/client-api-policy';
+import { NotificationsGateway } from './modules/notifications/notifications.gateway';
+import type { Server } from 'node:http';
 
 export async function createBackendApp(factory = NestFactory) {
   const app = await factory.create(AppModule);
@@ -47,6 +49,7 @@ export async function createBackendApp(factory = NestFactory) {
 
   app.enableCors();
   app.enableShutdownHooks();
+  app.get(NotificationsGateway).attach(app.getHttpServer() as Server);
   app.useGlobalPipes(
     new ValidationPipe({
       transform: true,

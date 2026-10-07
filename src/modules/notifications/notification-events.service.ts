@@ -24,6 +24,17 @@ export const companyRecipients = (
 export class NotificationEventsService {
   constructor(private readonly notifications: NotificationsService) {}
 
+  transaction<T>(
+    work: (tx: Prisma.TransactionClient) => Promise<T>,
+    options?: {
+      isolationLevel?: Prisma.TransactionIsolationLevel;
+      maxWait?: number;
+      timeout?: number;
+    },
+  ) {
+    return this.notifications.transaction(work, options);
+  }
+
   async pendingProfile(tx: Prisma.TransactionClient, accountId: string) {
     const account = await tx.account.findUniqueOrThrow({
       where: { id: accountId },

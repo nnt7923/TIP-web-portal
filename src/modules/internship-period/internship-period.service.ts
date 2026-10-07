@@ -376,7 +376,7 @@ export class InternshipPeriodService {
     duplicate = 'Internship period already exists in this academic year',
   ): Promise<T> {
     try {
-      return await this.prisma.$transaction(work, {
+      return await this.notificationEvents.transaction(work, {
         isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
       });
     } catch (error) {

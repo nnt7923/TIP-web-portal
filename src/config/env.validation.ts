@@ -5,6 +5,18 @@ export const envValidationSchema = Joi.object({
     .valid('development', 'test', 'production')
     .default('development'),
   PORT: Joi.number().port().default(3000),
+  NOTIFICATIONS_REALTIME_ENABLED: Joi.boolean().default(false),
+  NOTIFICATIONS_REALTIME_NAMESPACE: Joi.string()
+    .pattern(/^[a-zA-Z0-9_-]{1,80}$/)
+    .when('NOTIFICATIONS_REALTIME_ENABLED', {
+      is: true,
+      then: Joi.required(),
+      otherwise: Joi.optional(),
+    }),
+  NOTIFICATIONS_ALLOWED_ORIGINS: Joi.string().when(
+    'NOTIFICATIONS_REALTIME_ENABLED',
+    { is: true, then: Joi.required(), otherwise: Joi.allow('').optional() },
+  ),
   DATABASE_URL: Joi.string()
     .uri({ scheme: ['postgres', 'postgresql'] })
     .required(),

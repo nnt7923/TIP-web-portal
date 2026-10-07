@@ -57,3 +57,7 @@ skills-lock.json
 !test/
 test/*
 !test/notifications.integration.cjs
+!test/realtime.integration.cjs
+!test/realtime.preview.cjs
+!src/**/*.spec.ts
+!src/testing/

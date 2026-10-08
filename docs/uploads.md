@@ -5,6 +5,7 @@
 - `POST /students`, `PATCH /students/:id`, `PATCH /students/me` accept the optional multipart field `cv`: PDF, Word 97–2003 DOC or DOCX, at most 4,194,304 bytes. Existing JSON and `cvUrl` requests still work. A file takes precedence over `cvUrl`.
 - Extensions are case insensitive. Browser MIME is not authoritative. PDF retains header-based recognition; this is not a full PDF integrity scan. DOC is inspected as CFB/Word with an isolated parser (2 second CPU deadline, 64 MiB worker heap). DOCX is inspected as an OOXML ZIP (2,048 entries, 32 MiB declared expanded total, 8 MiB per required XML part); DTD/entity declarations, encrypted Word and detected macros are rejected. This is format validation, not antivirus scanning.
 - New raw assets use UUID public IDs including the validated extension, with overwrite disabled. Existing URLs/public IDs are preserved until an explicit replacement/removal. No migration or backfill is needed.
+- PDF recognition permits ASCII whitespace (tab, line feed, form feed, carriage return, space) before the signature, provided the complete version header is in the first 1,024 bytes. Arbitrary prefixes and high-bit byte lookalikes remain rejected. Validation preserves the submitted bytes; it does not rewrite PDF object offsets.
 
 ## Logos and failure behavior
 

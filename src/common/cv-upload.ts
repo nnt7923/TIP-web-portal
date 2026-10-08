@@ -251,8 +251,10 @@ export class OptionalCvPipe implements PipeTransform<
     try {
       switch (extname(file.originalname).toLowerCase()) {
         case '.pdf':
-          valid = /^%PDF-\d\.\d/.test(
-            file.buffer.subarray(0, 8).toString('ascii'),
+          // Some PDF exporters prepend whitespace. Accept only whitespace before
+          // the signature within the first 1 KiB; do not scan arbitrary payloads.
+          valid = /^[\t\n\f\r ]*%PDF-\d\.\d/.test(
+            file.buffer.subarray(0, 1024).toString('latin1'),
           );
           break;
         case '.doc':

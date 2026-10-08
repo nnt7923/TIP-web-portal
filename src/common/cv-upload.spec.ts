@@ -48,6 +48,29 @@ describe('CV content validation', () => {
       ),
     ).resolves.toBeDefined();
   });
+  it.each(['\n', '\r\n', ' \t\f\r\n'])(
+    'accepts a PDF with leading whitespace (%j) without changing its bytes',
+    async (prefix) => {
+      const upload = file('cv.pdf', Buffer.concat([Buffer.from(prefix), pdf]));
+      const original = Buffer.from(upload.buffer);
+      await expect(pipe.transform(upload)).resolves.toBe(upload);
+      expect(upload.buffer).toEqual(original);
+    },
+  );
+  it.each([
+    Buffer.from('MZ'),
+    Buffer.from('<html>'),
+    Buffer.from('not a PDF\n'),
+    Buffer.from([0x8a]),
+    Buffer.alloc(1024, 0x20),
+  ])(
+    'rejects non-whitespace or excessive prefixes before PDF',
+    async (prefix) => {
+      await expect(
+        pipe.transform(file('cv.pdf', Buffer.concat([prefix, pdf]))),
+      ).rejects.toMatchObject({ status: 400 });
+    },
+  );
   it.each([
     ['cv.pdf', Buffer.from('not PDF')],
     ['cv.doc', pdf],

@@ -1,3 +1,4 @@
+import { rethrowUploadConflict } from '../../common/upload-conflict';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { assertUniversityStatusTransition } from '../../common/utils/status-transition.util';
@@ -146,6 +147,10 @@ export class UniversitiesService {
         const updated = await tx.university.update({
           where: {
             id,
+            ...(data.logoUrl !== undefined && {
+              logoUrl: currentUniversity.logoUrl,
+              logoPublicId: currentUniversity.logoPublicId,
+            }),
             ...(updateUniversityDto.status !== undefined && {
               status: before.status,
             }),
@@ -183,6 +188,7 @@ export class UniversitiesService {
       if (uploadedLogoPublicId) {
         await this.cloudinaryService.destroySafely(uploadedLogoPublicId);
       }
+      if (data.logoUrl !== undefined) rethrowUploadConflict(error);
       handlePrismaError(error, {
         duplicate: 'University code already exists',
         notFound: `University with id "${id}" was not found`,
@@ -195,7 +201,11 @@ export class UniversitiesService {
 
     try {
       const deletedUniversity = await this.prisma.university.delete({
-        where: { id },
+        where: {
+          id,
+          logoUrl: university.logoUrl,
+          logoPublicId: university.logoPublicId,
+        },
       });
 
       if (university.logoPublicId) {
@@ -204,6 +214,7 @@ export class UniversitiesService {
 
       return deletedUniversity;
     } catch (error) {
+      rethrowUploadConflict(error);
       handlePrismaError(error, {
         notFound: `University with id "${id}" was not found`,
       });

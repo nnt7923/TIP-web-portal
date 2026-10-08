@@ -36,7 +36,11 @@ for recognized client routes; it does not authorize the actual request.
 The Next.js website can continue sending its existing server-side `X-Secret`.
 No frontend environment variable, schema or database migration is needed.
 
-CV uploads use multipart field `cv`, PDF only, maximum 4 MiB (4,194,304 bytes).
+CV uploads use multipart field `cv`, PDF/DOC/DOCX, maximum 4 MiB (4,194,304 bytes).
+The extension and document content must agree; browser MIME is not authoritative.
+Encrypted or macro-enabled Word documents are rejected. An uploaded file takes precedence over `cvUrl`.
+Company and university create/update APIs also accept multipart `logo` (JPG/PNG/WebP, maximum 4 MiB); JSON requests remain supported.
+File updates that conflict with another request return `409`; reload the record before retrying. Provider failures return `502`, provider timeouts `504`.
 Let the HTTP client generate the multipart `Content-Type` boundary.
 
 Smoke checks without a secret:

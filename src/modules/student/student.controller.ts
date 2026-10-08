@@ -1,7 +1,5 @@
-import {
-  MAX_UPLOAD_BYTES,
-  UPLOAD_VALIDATOR_OPTIONS,
-} from '../../common/upload-limits';
+import { MAX_UPLOAD_BYTES } from '../../common/upload-limits';
+import { OptionalCvPipe, type UploadedCvFile } from '../../common/cv-upload';
 import {
   Body,
   Controller,
@@ -10,7 +8,6 @@ import {
   HttpCode,
   HttpStatus,
   Param,
-  ParseFilePipeBuilder,
   ParseUUIDPipe,
   Patch,
   Post,
@@ -40,10 +37,6 @@ import { QueryStudentDto } from './dto/query-student.dto';
 import { UpdateStudentDto } from './dto/update-student.dto';
 import { StudentService } from './student.service';
 import { UpdateStudentProfileDto } from './dto/update-student-profile.dto';
-
-type UploadedCvFile = {
-  buffer: Buffer;
-};
 
 const schoolReaderRoles = [
   SchoolUserRole.UNIVERSITY_ADMIN,
@@ -96,7 +89,7 @@ export class StudentController {
         cv: {
           type: 'string',
           format: 'binary',
-          description: 'Optional PDF CV, maximum 4 MiB.',
+          description: 'Optional PDF, DOC or DOCX CV, maximum 4 MiB.',
         },
       },
     },
@@ -104,16 +97,7 @@ export class StudentController {
   create(
     @CurrentUser() currentUser: CurrentUserData,
     @Body() dto: CreateStudentDto,
-    @UploadedFile(
-      new ParseFilePipeBuilder()
-        .addFileTypeValidator({
-          fileType: 'application/pdf',
-          errorMessage:
-            'Không nhận diện được nội dung PDF của CV. Hãy xuất lại tệp PDF rồi thử lại.',
-        })
-        .addMaxSizeValidator(UPLOAD_VALIDATOR_OPTIONS)
-        .build({ fileIsRequired: false }),
-    )
+    @UploadedFile(new OptionalCvPipe())
     file?: UploadedCvFile,
   ) {
     return this.studentService.create(currentUser, dto, file);
@@ -153,7 +137,7 @@ export class StudentController {
         cv: {
           type: 'string',
           format: 'binary',
-          description: 'PDF, maximum 4 MiB',
+          description: 'PDF, DOC or DOCX, maximum 4 MiB',
         },
       },
     },
@@ -161,16 +145,7 @@ export class StudentController {
   updateMe(
     @CurrentUser() user: CurrentUserData,
     @Body() dto: UpdateStudentProfileDto,
-    @UploadedFile(
-      new ParseFilePipeBuilder()
-        .addFileTypeValidator({
-          fileType: 'application/pdf',
-          errorMessage:
-            'Không nhận diện được nội dung PDF của CV. Hãy xuất lại tệp PDF rồi thử lại.',
-        })
-        .addMaxSizeValidator(UPLOAD_VALIDATOR_OPTIONS)
-        .build({ fileIsRequired: false }),
-    )
+    @UploadedFile(new OptionalCvPipe())
     file?: UploadedCvFile,
   ) {
     return this.studentService.updateMe(user, dto, file);
@@ -209,7 +184,8 @@ export class StudentController {
         cv: {
           type: 'string',
           format: 'binary',
-          description: 'Optional replacement PDF CV, maximum 4 MiB.',
+          description:
+            'Optional replacement PDF, DOC or DOCX CV, maximum 4 MiB.',
         },
         status: {
           type: 'string',
@@ -222,16 +198,7 @@ export class StudentController {
     @CurrentUser() currentUser: CurrentUserData,
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: UpdateStudentDto,
-    @UploadedFile(
-      new ParseFilePipeBuilder()
-        .addFileTypeValidator({
-          fileType: 'application/pdf',
-          errorMessage:
-            'Không nhận diện được nội dung PDF của CV. Hãy xuất lại tệp PDF rồi thử lại.',
-        })
-        .addMaxSizeValidator(UPLOAD_VALIDATOR_OPTIONS)
-        .build({ fileIsRequired: false }),
-    )
+    @UploadedFile(new OptionalCvPipe())
     file?: UploadedCvFile,
   ) {
     return this.studentService.update(currentUser, id, dto, file);

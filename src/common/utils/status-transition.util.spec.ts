@@ -66,7 +66,7 @@ function setup(status: string) {
           new SystemAdminService(prisma, authService, {
             ...notificationEvents,
             transaction: prisma.$transaction.bind(prisma),
-          } as NotificationEventsService).updateAccountStatus(
+          } as unknown as NotificationEventsService).updateAccountStatus(
             actor.id,
             'target',
             { status: 'PENDING' },
@@ -87,7 +87,7 @@ function setup(status: string) {
           new SchoolUserService(prisma, authService, {
             ...notificationEvents,
             transaction: prisma.$transaction.bind(prisma),
-          } as NotificationEventsService).update(actor, 'target', {
+          } as unknown as NotificationEventsService).update(actor, 'target', {
             status: 'PENDING',
           }),
       },
@@ -98,7 +98,7 @@ function setup(status: string) {
           new CompanyUserService(prisma, authService, {
             ...notificationEvents,
             transaction: prisma.$transaction.bind(prisma),
-          } as NotificationEventsService).update(actor, 'target', {
+          } as unknown as NotificationEventsService).update(actor, 'target', {
             status: 'PENDING',
           }),
       },
@@ -117,7 +117,7 @@ function setup(status: string) {
           new SystemAdminService(prisma, authService, {
             ...notificationEvents,
             transaction: prisma.$transaction.bind(prisma),
-          } as NotificationEventsService).updateUniversityStatus(
+          } as unknown as NotificationEventsService).updateUniversityStatus(
             actor.id,
             'target',
             { status: 'PENDING' },

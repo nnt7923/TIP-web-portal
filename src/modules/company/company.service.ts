@@ -1,3 +1,4 @@
+import { rethrowUploadConflict } from '../../common/upload-conflict';
 import {
   BadRequestException,
   Injectable,
@@ -147,6 +148,10 @@ export class CompanyService {
           const company = await transaction.company.update({
             where: {
               id,
+              ...(data.logoUrl !== undefined && {
+                logoUrl: currentCompany.logoUrl,
+                logoPublicId: currentCompany.logoPublicId,
+              }),
               ...(dto.status !== undefined && {
                 status: currentCompany.status,
               }),
@@ -185,6 +190,7 @@ export class CompanyService {
       if (uploadedLogoPublicId) {
         await this.cloudinaryService.destroySafely(uploadedLogoPublicId);
       }
+      if (data.logoUrl !== undefined) rethrowUploadConflict(error);
       handlePrismaError(error, {
         notFound: `Company with id "${id}" was not found`,
       });
@@ -196,7 +202,13 @@ export class CompanyService {
 
     try {
       await this.prisma.$transaction(async (transaction) => {
-        await transaction.company.delete({ where: { id } });
+        await transaction.company.delete({
+          where: {
+            id,
+            logoUrl: company.logoUrl,
+            logoPublicId: company.logoPublicId,
+          },
+        });
         await transaction.auditLog.create({
           data: {
             actorId,
@@ -208,6 +220,7 @@ export class CompanyService {
         });
       });
     } catch (error) {
+      rethrowUploadConflict(error);
       handlePrismaError(error, {
         notFound: `Company with id "${id}" was not found`,
       });

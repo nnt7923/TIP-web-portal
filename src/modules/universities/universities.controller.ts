@@ -1,3 +1,8 @@
+import {
+  MAX_UPLOAD_BYTES,
+  UPLOAD_VALIDATOR_OPTIONS,
+} from '../../common/upload-limits';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import {
   Body,
@@ -12,6 +17,9 @@ import {
   Post,
   Query,
   UseGuards,
+  UseInterceptors,
+  UploadedFile,
+  ParseFilePipeBuilder,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -29,6 +37,16 @@ import { QueryUniversityDto } from './dto/query-university.dto';
 import { UpdateUniversityDto } from './dto/update-university.dto';
 import { UniversitiesService } from './universities.service';
 
+const logoUpload = FileInterceptor('logo', {
+  limits: { fileSize: MAX_UPLOAD_BYTES, files: 1 },
+});
+const optionalLogoPipe = new ParseFilePipeBuilder()
+  .addFileTypeValidator({ fileType: /(jpg|jpeg|png|webp)$/ })
+  .addMaxSizeValidator(UPLOAD_VALIDATOR_OPTIONS)
+  .build({ fileIsRequired: false });
+
+type UploadedLogoFile = { buffer: Buffer };
+
 @ApiTags('Universities')
 @Controller('universities')
 export class UniversitiesController {
@@ -39,7 +57,8 @@ export class UniversitiesController {
   @GlobalRoles(GlobalRole.SYSTEM_ADMIN)
   @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'Create a university' })
-  @ApiConsumes('application/json')
+  @UseInterceptors(logoUpload)
+  @ApiConsumes('application/json', 'multipart/form-data')
   @ApiBody({
     schema: {
       type: 'object',
@@ -50,11 +69,20 @@ export class UniversitiesController {
         website: { type: 'string', format: 'uri', nullable: true },
         address: { type: 'string', nullable: true },
         logoUrl: { type: 'string', nullable: true },
+        logo: {
+          type: 'string',
+          format: 'binary',
+          description:
+            'JPG, PNG or WebP, maximum 4 MiB; takes precedence over logoUrl.',
+        },
       },
     },
   })
-  create(@Body() createUniversityDto: CreateUniversityDto) {
-    return this.universitiesService.create(createUniversityDto);
+  create(
+    @Body() createUniversityDto: CreateUniversityDto,
+    @UploadedFile(optionalLogoPipe) file?: UploadedLogoFile,
+  ) {
+    return this.universitiesService.create(createUniversityDto, file);
   }
 
   @Get()
@@ -74,7 +102,8 @@ export class UniversitiesController {
   @GlobalRoles(GlobalRole.SYSTEM_ADMIN)
   @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'Update a university' })
-  @ApiConsumes('application/json')
+  @UseInterceptors(logoUpload)
+  @ApiConsumes('application/json', 'multipart/form-data')
   @ApiBody({
     schema: {
       type: 'object',
@@ -88,6 +117,12 @@ export class UniversitiesController {
           description: 'Send an empty string to remove the logo.',
         },
         status: { type: 'string', enum: Object.values(UniversityStatus) },
+        logo: {
+          type: 'string',
+          format: 'binary',
+          description:
+            'JPG, PNG or WebP, maximum 4 MiB; takes precedence over logoUrl.',
+        },
       },
     },
   })
@@ -95,8 +130,14 @@ export class UniversitiesController {
     @CurrentUser('id') actorId: string,
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() updateUniversityDto: UpdateUniversityDto,
+    @UploadedFile(optionalLogoPipe) file?: UploadedLogoFile,
   ) {
-    return this.universitiesService.update(actorId, id, updateUniversityDto);
+    return this.universitiesService.update(
+      actorId,
+      id,
+      updateUniversityDto,
+      file,
+    );
   }
 
   @Delete(':id')

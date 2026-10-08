@@ -1,3 +1,5 @@
+import { cvUploadOptions, type UploadedCvFile } from '../../common/cv-upload';
+import { rethrowUploadConflict } from '../../common/upload-conflict';
 import {
   ConflictException,
   ForbiddenException,
@@ -39,7 +41,7 @@ export class StudentService {
   async create(
     currentUser: CurrentUserData,
     dto: CreateStudentDto,
-    file?: { buffer: Buffer },
+    file?: UploadedCvFile,
   ) {
     const universityId = this.getUniversityId(currentUser);
 
@@ -50,10 +52,10 @@ export class StudentService {
     let cvPublicId: string | undefined;
 
     if (file) {
-      const result = await this.cloudinaryService.uploadBuffer(file.buffer, {
-        folder: 'students/cvs',
-        resource_type: 'raw',
-      });
+      const result = await this.cloudinaryService.uploadBuffer(
+        file.buffer,
+        cvUploadOptions(file),
+      );
       cvUrl = result.secure_url;
       cvPublicId = result.public_id;
     }
@@ -136,7 +138,7 @@ export class StudentService {
     currentUser: CurrentUserData,
     id: string,
     dto: UpdateStudentDto,
-    file?: { buffer: Buffer },
+    file?: UploadedCvFile,
   ) {
     return this.updateInUniversity(
       this.getUniversityId(currentUser),
@@ -157,7 +159,7 @@ export class StudentService {
   async updateMe(
     user: CurrentUserData,
     dto: UpdateStudentProfileDto,
-    file?: { buffer: Buffer },
+    file?: UploadedCvFile,
   ) {
     if (!user.student)
       throw new ForbiddenException('Student profile is required');
@@ -178,7 +180,7 @@ export class StudentService {
     universityId: string,
     id: string,
     dto: UpdateStudentDto,
-    file?: { buffer: Buffer },
+    file?: UploadedCvFile,
     accountData?: Prisma.AccountUpdateInput,
   ) {
     const currentStudent = await this.findOneInUniversity(id, universityId);
@@ -207,10 +209,7 @@ export class StudentService {
     if (file) {
       const uploadedCv = await this.cloudinaryService.uploadBuffer(
         file.buffer,
-        {
-          folder: 'students/cvs',
-          resource_type: 'raw',
-        },
+        cvUploadOptions(file),
       );
 
       data.cvUrl = uploadedCv.secure_url;
@@ -226,7 +225,15 @@ export class StudentService {
 
     try {
       const updatedStudent = await this.prisma.student.update({
-        where: { id, universityId, account: { globalRole: GlobalRole.USER } },
+        where: {
+          id,
+          universityId,
+          account: { globalRole: GlobalRole.USER },
+          ...(data.cvUrl !== undefined && {
+            cvUrl: currentStudent.cvUrl,
+            cvPublicId: currentStudent.cvPublicId,
+          }),
+        },
         data,
         include: {
           account: { select: safeAccountSelect },
@@ -250,6 +257,7 @@ export class StudentService {
         await this.cloudinaryService.destroySafely(uploadedCvPublicId, 'raw');
       }
 
+      if (data.cvUrl !== undefined) rethrowUploadConflict(error);
       handlePrismaError(error, {
         duplicate: 'Student code already exists in this university',
         notFound: `Student with id "${id}" was not found`,
@@ -263,13 +271,20 @@ export class StudentService {
 
     try {
       await this.prisma.student.delete({
-        where: { id, universityId, account: { globalRole: GlobalRole.USER } },
+        where: {
+          id,
+          universityId,
+          account: { globalRole: GlobalRole.USER },
+          cvUrl: student.cvUrl,
+          cvPublicId: student.cvPublicId,
+        },
       });
 
       if (student.cvPublicId) {
         await this.cloudinaryService.destroySafely(student.cvPublicId, 'raw');
       }
     } catch (error) {
+      rethrowUploadConflict(error);
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2003'

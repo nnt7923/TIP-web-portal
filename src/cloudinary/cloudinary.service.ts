@@ -1,4 +1,10 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import {
+  BadGatewayException,
+  GatewayTimeoutException,
+  Inject,
+  Injectable,
+  Logger,
+} from '@nestjs/common';
 import {
   UploadApiOptions,
   UploadApiResponse,
@@ -19,24 +25,71 @@ export class CloudinaryService {
     options: UploadApiOptions = {},
   ): Promise<UploadApiResponse> {
     return new Promise((resolve, reject) => {
-      const stream = this.cloudinary.uploader.upload_stream(
-        options,
-        (error, result) => {
-          if (error) {
-            reject(new Error(error.message));
-            return;
-          }
+      let settled = false;
+      let failed = false;
+      let stream:
+        ReturnType<typeof this.cloudinary.uploader.upload_stream> | undefined;
+      const fail = (timeout = false) => {
+        if (settled) return;
+        settled = true;
+        failed = true;
+        clearTimeout(deadline);
+        stream?.destroy();
+        reject(
+          timeout
+            ? new GatewayTimeoutException(
+                'Dịch vụ lưu tệp phản hồi quá chậm. Vui lòng kiểm tra hồ sơ rồi thử lại.',
+              )
+            : new BadGatewayException(
+                'Không thể lưu tệp lúc này. Vui lòng thử lại.',
+              ),
+        );
+      };
+      // SDK timeout is an idle timeout; also cap total elapsed upload time.
+      const deadline = setTimeout(() => fail(true), 30000);
+      try {
+        stream = this.cloudinary.uploader.upload_stream(
+          { ...options, timeout: 30000 },
+          (error, result) => {
+            if (settled) {
+              // A late provider success must not leave an unreferenced asset.
+              if (failed && result?.public_id)
+                void this.destroySafely(
+                  result.public_id,
+                  result.resource_type === 'raw'
+                    ? 'raw'
+                    : result.resource_type === 'video'
+                      ? 'video'
+                      : 'image',
+                );
+              return;
+            }
+            if (error) {
+              this.logger.warn('Cloudinary upload failed');
+              fail(
+                error.name === 'TimeoutError' ||
+                  error.http_code === 499 ||
+                  error.http_code === 504,
+              );
+              return;
+            }
 
-          if (!result) {
-            reject(new Error('Cloudinary did not return an upload result'));
-            return;
-          }
+            if (!result) {
+              fail();
+              return;
+            }
 
-          resolve(result);
-        },
-      );
+            settled = true;
+            clearTimeout(deadline);
+            resolve(result);
+          },
+        );
 
-      stream.end(file);
+        stream.on('error', () => fail());
+        stream.end(file);
+      } catch {
+        fail();
+      }
     });
   }
 

@@ -14,6 +14,7 @@ const { NotificationsService } = require('../dist/modules/notifications/notifica
 const { NotificationDeliveryService } = require('../dist/modules/notifications/notification-delivery.service');
 const { NotificationTicketService } = require('../dist/modules/notifications/notification-ticket.service');
 const { NotificationsGateway } = require('../dist/modules/notifications/notifications.gateway');
+const { AuthService } = require('../dist/modules/auth/auth.service');
 assert.equal(new URL(process.env.DATABASE_URL).hostname, 'ep-frosty-hill-b5o5lzl1.c-7.us-east-2.aws.neon.tech');
 assert.equal(process.env.REDIS_KEY_PREFIX, 'realtime-test-20261007:');
 process.env.NOTIFICATIONS_ALLOWED_ORIGINS = 'http://localhost:3001';
@@ -140,6 +141,11 @@ async function main() {
   const blockedClose = once(blockedSocket.ws, 'close');
   await delivery.publish([blocked.id], 'created');
   check((await blockedClose)[0], 4401);
+  const logoutUser = await identity('-logout-all');
+  await redis.sadd(`auth:user-sessions:${logoutUser.id}`, logoutUser.sid);
+  await appA.get(AuthService).logoutAll(logoutUser.id);
+  check(await redis.exists(`auth:session:${logoutUser.sid}`), 0);
+  check(await redis.exists(`auth:user-sessions:${logoutUser.id}`), 0);
   const unavailable = once(b.ws, 'close');
   appB.get(NotificationsGateway).subscriber.disconnect();
   check((await unavailable)[0], 1013);

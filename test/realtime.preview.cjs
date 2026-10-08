@@ -81,6 +81,26 @@ async function run() {
     await api(`/student-enrollments/${enrollment.id}/review`, { decision: 'REJECTED', reason: 'Automated isolated fixture' }, admin.accessToken, 'PATCH');
   }
   assert.equal(latencies.length, 20, 'Collect 20 healthy connection samples');
+  if (process.env.VERIFY_FUNCTION_LIFETIME === 'true') {
+    const oldSocket = sockets.at(-1), deadline = Date.now() + 360000;
+    let announcedAt = 0;
+    while (!oldSocket.isClosed() && Date.now() < deadline) {
+      if (Date.now() - announcedAt > 30000) { console.log('Waiting for actual Vercel Function lifetime closure...'); announcedAt = Date.now(); }
+      await delay(1000);
+    }
+    assert.ok(oldSocket.isClosed(), 'Function eventually closes its WebSocket');
+    for (let j = 0; j < 450 && (sockets.at(-1) === oldSocket || sockets.at(-1).isClosed()); j++) await delay(100);
+    await delay(5000); // Ticket authentication and ready reconciliation.
+    const before = frames.length;
+    const enrollment = await api('/student-enrollments', {
+      universityId: fixtures.universityId, majorId: fixtures.majorId,
+      studentCode: `RT${Date.now()}`, className: 'Lifetime fixture', semester: 1,
+    }, person.accessToken);
+    await page.getByRole('button', { name: `Thông báo, ${latencies.length + recoveries.length + 1} chưa đọc`, exact: true }).waitFor();
+    assert.ok(frames.slice(before).some(f => f.type === 'notifications.changed'), 'New socket delivers after actual Function timeout');
+    await api(`/student-enrollments/${enrollment.id}/review`, { decision: 'REJECTED', reason: 'Automated isolated fixture' }, admin.accessToken, 'PATCH');
+    console.log('Actual Vercel Function timeout, reconnect and subsequent event delivery passed.');
+  }
   assert.deepEqual(errors, []);
   const cookies = await context.cookies(frontend);
   for (const name of ['tip_access_token', 'tip_refresh_token']) {

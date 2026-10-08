@@ -10,6 +10,7 @@ Scope: Notifications realtime, existing lazy-loaded frontend dialogs/dropdown an
 | High, fixed | A browser retaining old account state after shared cookies are replaced in another tab can show the previous account's notification data. | Login broadcasts session replacement; old tabs stop sockets/timers and discard cached notification data. Browser regression covers it. |
 | High, fixed | Preview sharing production auth keys would mix sessions; prefixed Redis keys alone do not prefix keys assembled from Lua ARGV during logout-all. | Isolated preview database/secrets/key prefix/channel namespace. Logout-all prefixes the session-key argument as well. |
 | High/moderate, fixed | Production dependency audit reported vulnerable transitive parsing/image dependencies in the existing lockfiles. | Compatible joi/proxy-addr and sharp/source-map-js updates; production-only npm audits now report zero vulnerabilities in both repos. |
+| High, fixed October 8 | Re-running npm audit reported Next.js 16.3.6 security advisories, including GHSA-cjq9-62q9-8jv4. | Patch Next.js and matching ESLint config to 16.3.8; repeat unit/browser/lint/typecheck/build and production dependency audit. |
 | Medium, fixed | Regression tests were broadly ignored by Git; a fresh checkout could not reproduce the existing checks. Browser harnesses depended on an ignored temporary Playwright install. | Track regression suites, add Playwright as a dev dependency and documented clean-checkout commands. |
 | Medium, fixed | Backend preview Function duration was 60 seconds. A sustained browser test lost the socket at that boundary and recovered through REST/reconnect. | Explicit 300-second duration; retain retry and polling recovery, test actual lifetime closure separately from healthy latency. |
 | Low, fixed | ioredis emitted unhandled connection error logs during preview idle/reconnect. | Redacted structured connection-unavailable warning; gateway subscription loss closes sockets. |
@@ -36,4 +37,10 @@ No additional confirmed production-blocking authorization or data-loss issue was
 
 Local validation uses Node 22 for backend and Node 24 for frontend. Production database was checked read-only: all 23 migrations already applied. No migration/backfill needed. Preview uses a schema-only Neon branch expiring October 10 and synthetic accounts; no write test runs on production.
 
-Final preview latency and production observation results are recorded below after the release gates complete.
+October 7 preview (60-second Function): 20 healthy samples, p95 1596 ms, max 1600 ms. One actual Function closure recovered through reconnect/reconciliation in 19832 ms including the business request. The two-second objective is measured only while connected; reconnection recovery is recorded separately.
+
+October 8 local gates: 127 backend unit tests, 52 real-database notification assertions, 42 real Postgres/Redis realtime checks, 38 frontend unit tests and all four browser suites passed. Both builds, lint without fixes and frontend typecheck passed on Node 22/24. Production-only dependency audits: zero vulnerabilities. Desktop/mobile notification rendering and lazy loading were checked; initial homepage JavaScript measured 848960 bytes versus 982691 before lazy loading (uncompressed, fresh browser context).
+
+October 8 final preview: backend `dpl_2uh4AXKvDVetYQoQDwk26P4RKZpG`, frontend `dpl_5SKxKaX5DD4horMKcX3oYb42DCVt`; 20 healthy samples, p95 **1693 ms**, maximum **1734 ms**. The 300-second Function closed the browser socket after approximately 316 seconds; the client reconnected and received a subsequent business event successfully. No browser exceptions or mobile overflow. Cookies were HttpOnly/Secure. The full preview harness passed.
+
+Production observation results will be recorded after the 30-minute release observation completes.

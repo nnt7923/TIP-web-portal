@@ -38,7 +38,7 @@ NOTIFICATIONS_WEBSOCKET_URL=wss://tip-web-portal-api.vercel.app/notifications/ws
 
 Preview must use a separate database branch, auth secrets, `REDIS_KEY_PREFIX` and realtime namespace. The existing Redis provider is shared with logical key/channel isolation. Do not use a production session in preview. Protected Vercel previews use a server-only `BACKEND_PROTECTION_BYPASS`; browser automation installs Vercel's bypass cookie. Do not disable deployment protection. Keep production and preview allowed Origins separate.
 
-Both Vercel projects require Fluid Compute. Backend uses Node 22, frontend Node 24. Backend `vercel.json` sets the Nest entrypoint's maximum duration to 300 seconds. Connections still expire and are not guaranteed to reconnect to the same instance. See [Vercel WebSockets](https://vercel.com/docs/functions/websockets) and [duration configuration](https://vercel.com/docs/functions/configuring-functions/duration).
+Both Vercel projects require Fluid Compute. Backend uses Node 22, frontend Node 24. The backend Vercel project has `resourceConfig.functionDefaultTimeout=300` (project setting; the zero-config Nest adapter does not accept a `src/main.ts` functions pattern). Connections still expire and are not guaranteed to reconnect to the same instance. See [Vercel WebSockets](https://vercel.com/docs/functions/websockets) and [duration configuration](https://vercel.com/docs/functions/configuring-functions/duration).
 
 ## Reproducible checks
 
@@ -48,7 +48,7 @@ Real integration tests load only ignored `.env.realtime-test.local`, never the a
 
 Frontend clean checkout: `npm ci`, `npx playwright install chromium`, `npm test`, `npm run lint`, `npm run typecheck`, `npm run build`, `npm run test:browser` under Node 24. Browser tests launch the production build against their own fake backend and never use production accounts. Optional `PLAYWRIGHT_CHROMIUM_EXECUTABLE` selects an installed Chromium.
 
-`test/realtime.preview.cjs` is opt-in: it requires ignored `.env.preview-tools.local` (`BE_BYPASS`, `FE_BYPASS`) and JSON `.env.preview-fixtures.local` containing isolated `admin`/`person` usernames, password, universityId and majorId. The admin must be an active school administrator; the person an active verified personal account. URLs are allowlisted preview aliases in the script. It submits/rejects synthetic enrollment requests, checks real WebSocket frames, measures 20 healthy samples, separately records timeout/reconnect recovery and captures desktop/mobile screenshots. Never point it to production. Results go to ignored `tmp/`.
+`test/realtime.preview.cjs` is opt-in: it requires ignored `.env.preview-tools.local` (`BE_BYPASS`, `FE_BYPASS`) and JSON `.env.preview-fixtures.local` containing isolated `admin`/`person` usernames, password, universityId and majorId. The admin must be an active school administrator; the person an active verified personal account. URLs are allowlisted preview aliases in the script. It submits/rejects synthetic enrollment requests, checks real WebSocket frames, measures 20 healthy samples, separately records timeout/reconnect recovery and captures desktop/mobile screenshots. Set `VERIFY_FUNCTION_LIFETIME=true` to additionally wait for actual Vercel duration closure and verify delivery on the replacement socket. Never point it to production. Results go to ignored `tmp/`.
 
 ## Release and rollback
 

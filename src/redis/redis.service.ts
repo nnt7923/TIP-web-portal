@@ -15,7 +15,9 @@ export class RedisService implements OnModuleDestroy {
       retryStrategy: (attempt) => Math.min(attempt * 100, 2_000),
     });
     // Do not let connection errors print provider URLs or credentials to runtime logs.
-    this.client.on('error', () => this.logger.warn('redis_connection_unavailable'));
+    this.client.on('error', () =>
+      this.logger.warn('redis_connection_unavailable'),
+    );
   }
 
   get connection(): Redis {

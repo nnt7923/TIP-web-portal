@@ -1,4 +1,5 @@
 import { PassThrough } from 'node:stream';
+import { Logger } from '@nestjs/common';
 import {
   v2 as Cloudinary,
   UploadApiErrorResponse,
@@ -7,6 +8,12 @@ import {
 import { CloudinaryService } from './cloudinary.service';
 
 describe('Cloudinary upload failure boundary', () => {
+  let warn: jest.SpyInstance;
+  beforeEach(() => {
+    warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => {});
+  });
+  afterEach(() => jest.restoreAllMocks());
+
   it('caps total upload time and cleans a late provider success', async () => {
     jest.useFakeTimers();
     try {
@@ -38,6 +45,10 @@ describe('Cloudinary upload failure boundary', () => {
       expect(destroy).toHaveBeenCalledWith('late.docx', {
         resource_type: 'raw',
       });
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn).toHaveBeenCalledWith(
+        'Cloudinary upload failed (stage=deadline, status=unknown, kind=timeout)',
+      );
     } finally {
       jest.useRealTimers();
     }
@@ -74,6 +85,44 @@ describe('Cloudinary upload failure boundary', () => {
       expect(upload.mock.calls[0][0]).toMatchObject({ timeout: 30000 });
     },
   );
+  it.each([
+    [403, 'UnexpectedResponse', undefined, '403', 'UnexpectedResponse'],
+    [401, 'Error', undefined, '401', 'Error'],
+    [400, 'Error', undefined, '400', 'Error'],
+    [undefined, 'Error', 'ECONNRESET', 'unknown', 'ECONNRESET'],
+    ['private-status', 'private-kind', 'private-code', 'unknown', 'unknown'],
+  ])(
+    'logs only allowlisted failure metadata (%s)',
+    async (http_code, name, code, status, kind) => {
+      const cloud = {
+        uploader: {
+          upload_stream: (
+            _options: unknown,
+            callback: (error: unknown) => void,
+          ) => {
+            queueMicrotask(() =>
+              callback({
+                http_code,
+                name,
+                code,
+                message: 'private provider message with API secret',
+                stack: 'private stack trace',
+              }),
+            );
+            return new PassThrough();
+          },
+        },
+      } as unknown as typeof Cloudinary;
+      await expect(
+        new CloudinaryService(cloud).uploadBuffer(Buffer.from('private CV')),
+      ).rejects.toMatchObject({ status: 502 });
+      expect(warn.mock.calls).toEqual([
+        [
+          `Cloudinary upload failed (stage=provider, status=${status}, kind=${kind})`,
+        ],
+      ]);
+    },
+  );
   it('handles stream failures without an unhandled error', async () => {
     const stream = new PassThrough();
     const cloud = {
@@ -84,6 +133,9 @@ describe('Cloudinary upload failure boundary', () => {
     );
     stream.emit('error', new Error('sensitive internal message'));
     await expect(promise).rejects.toMatchObject({ status: 502 });
+    expect(warn).toHaveBeenCalledWith(
+      'Cloudinary upload failed (stage=stream, status=unknown, kind=Error)',
+    );
   });
   it('sanitizes synchronous SDK failures', async () => {
     const cloud = {
@@ -96,5 +148,8 @@ describe('Cloudinary upload failure boundary', () => {
     await expect(
       new CloudinaryService(cloud).uploadBuffer(Buffer.from('fixture')),
     ).rejects.toMatchObject({ status: 502 });
+    expect(warn).toHaveBeenCalledWith(
+      'Cloudinary upload failed (stage=setup, status=unknown, kind=Error)',
+    );
   });
 });

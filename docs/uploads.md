@@ -12,6 +12,7 @@
 - Company and university POST/PATCH endpoints accept the optional multipart field `logo`: JPG/PNG/WebP, at most 4 MiB. Existing System Admin authorization and JSON requests are preserved. Admin UI continues to use URL inputs.
 - File replacement, clearing and record deletion compare the observed URL/public ID atomically. A conflict returns `409` and cleans only the losing request's new file. Old files are deleted only after database success. Cleanup failures are logged without failing a committed operation.
 - Cloudinary SDK idle timeout and total upload deadline are 30 seconds. Provider errors return sanitized `502`; upload timeouts return `504`. A late successful callback after failure triggers best-effort cleanup. A process termination can still prevent cleanup; no distributed transaction with Cloudinary is claimed.
+- Upload failure logs include the failure stage, numeric provider HTTP status (when available), and an allowlisted error kind. Provider messages, stack traces, credentials and file contents are omitted. For example, `stage=provider, status=403` confirms a provider denial; `stage=setup, status=unknown` identifies a local SDK setup failure.
 - Frontend Server Actions wait up to 45 seconds. An uncertain response triggers an authenticated profile reload before another save. Read failure leaves a reload button and the selected file intact; there is no automatic mutation retry. Tokens remain in HttpOnly cookies.
 
 ## Local regression checks

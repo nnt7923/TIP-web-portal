@@ -12,6 +12,19 @@ import {
 } from 'cloudinary';
 import { CLOUDINARY } from './cloudinary.constants';
 
+type UploadFailureStage =
+  'provider' | 'stream' | 'setup' | 'deadline' | 'empty';
+const uploadErrorKinds = new Set([
+  'Error',
+  'TimeoutError',
+  'UnexpectedResponse',
+  'ECONNRESET',
+  'ECONNREFUSED',
+  'ETIMEDOUT',
+  'ENOTFOUND',
+  'EAI_AGAIN',
+]);
+
 @Injectable()
 export class CloudinaryService {
   private readonly logger = new Logger(CloudinaryService.name);
@@ -29,11 +42,36 @@ export class CloudinaryService {
       let failed = false;
       let stream:
         ReturnType<typeof this.cloudinary.uploader.upload_stream> | undefined;
-      const fail = (timeout = false) => {
+      const fail = (
+        timeout = false,
+        stage: UploadFailureStage = 'provider',
+        error?: unknown,
+      ) => {
         if (settled) return;
         settled = true;
         failed = true;
         clearTimeout(deadline);
+        const details =
+          error && typeof error === 'object'
+            ? (error as { http_code?: unknown; name?: unknown; code?: unknown })
+            : {};
+        const status =
+          typeof details.http_code === 'number' &&
+          Number.isInteger(details.http_code) &&
+          details.http_code >= 400 &&
+          details.http_code <= 599
+            ? details.http_code
+            : 'unknown';
+        const kind = timeout
+          ? 'timeout'
+          : ([details.code, details.name].find(
+              (value): value is string =>
+                typeof value === 'string' && uploadErrorKinds.has(value),
+            ) ?? 'unknown');
+        // Never log provider messages, stack traces, credentials or file data.
+        this.logger.warn(
+          `Cloudinary upload failed (stage=${stage}, status=${status}, kind=${kind})`,
+        );
         stream?.destroy();
         reject(
           timeout
@@ -46,7 +84,7 @@ export class CloudinaryService {
         );
       };
       // SDK timeout is an idle timeout; also cap total elapsed upload time.
-      const deadline = setTimeout(() => fail(true), 30000);
+      const deadline = setTimeout(() => fail(true, 'deadline'), 30000);
       try {
         stream = this.cloudinary.uploader.upload_stream(
           { ...options, timeout: 30000 },
@@ -65,17 +103,18 @@ export class CloudinaryService {
               return;
             }
             if (error) {
-              this.logger.warn('Cloudinary upload failed');
               fail(
                 error.name === 'TimeoutError' ||
                   error.http_code === 499 ||
                   error.http_code === 504,
+                'provider',
+                error,
               );
               return;
             }
 
             if (!result) {
-              fail();
+              fail(false, 'empty');
               return;
             }
 
@@ -85,10 +124,10 @@ export class CloudinaryService {
           },
         );
 
-        stream.on('error', () => fail());
+        stream.on('error', (error) => fail(false, 'stream', error));
         stream.end(file);
-      } catch {
-        fail();
+      } catch (error) {
+        fail(false, 'setup', error);
       }
     });
   }

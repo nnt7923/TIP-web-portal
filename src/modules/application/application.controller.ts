@@ -38,7 +38,11 @@ export class ApplicationController {
 
   /** Nhận opportunityId; service lấy hồ sơ sinh viên từ CurrentUser. */
   @Post()
-  @ApiOperation({ summary: 'Student: apply for an open opportunity' })
+  @ApiOperation({
+    summary: 'Student: apply for an open opportunity (saved CV required)',
+    description:
+      'Returns 400 when the student has no saved HTTP(S) CV URL. Application details include student.cvUrl within the existing organization access scope.',
+  })
   @ApiConsumes('application/json')
   @ApiBody({ type: CreateApplicationDto })
   create(

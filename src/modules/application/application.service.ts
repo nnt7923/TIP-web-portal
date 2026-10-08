@@ -93,12 +93,30 @@ export class ApplicationService {
                 },
               },
             },
-            select: { id: true, universityId: true },
+            select: { id: true, universityId: true, cvUrl: true },
           });
           if (!student)
             throw new ForbiddenException(
               'An active, verified student account is required',
             );
+
+          // Read the persisted CV in the same transaction as the application.
+          // A selected but unsaved file (or a client-supplied URL) is not enough.
+          let hasCv = false;
+          try {
+            const url = new URL(student.cvUrl?.trim() ?? '');
+            hasCv =
+              ['https:', 'http:'].includes(url.protocol) &&
+              !url.username &&
+              !url.password;
+          } catch {
+            // Missing or invalid legacy URLs do not qualify as a saved CV.
+          }
+          if (!hasCv) {
+            throw new BadRequestException(
+              'Bạn cần tải lên hoặc lưu liên kết CV trong hồ sơ cá nhân trước khi ứng tuyển.',
+            );
+          }
 
           const opportunity = await transaction.opportunity.findUnique({
             where: { id: dto.opportunityId },

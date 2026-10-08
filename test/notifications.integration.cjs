@@ -92,6 +92,8 @@ async function main() {
   const student = await prisma.account.findUniqueOrThrow({ where: { id: personal.id }, include });
   const opportunity = await prisma.opportunity.create({ data: { companyId: company.id, title: 'Intern', type: 'INTERNSHIP', description: 'Test', status: 'OPEN', applicationDeadline: new Date(Date.now() + 86400000), vacancies: 5 } });
   const applications = new ApplicationService(prisma, events);
+  await assert.rejects(applications.create(student, { opportunityId: opportunity.id }), error => error.getStatus() === 400);
+  await prisma.student.update({ where: { id: student.student.id }, data: { cvUrl: 'https://example.invalid/notification-test-cv.pdf' } });
   const application = await applications.create(student, { opportunityId: opportunity.id });
   check(await count(companyAdmin, { entityId: application.id }), 1);
   check(await count(mentor, { entityId: application.id }), 0);
